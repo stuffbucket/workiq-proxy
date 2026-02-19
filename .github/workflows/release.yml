@@ -46,7 +46,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           registry-url: https://registry.npmjs.org
 
       - name: Set npm package version from tag
@@ -59,4 +59,4 @@ jobs:
         run: cp README.md LICENSE npm/
 
       - name: Publish to npm
-        run: cd npm && npm publish --access public --provenance
+        run: cd npm && npm publish --access public
