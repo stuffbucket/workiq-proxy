@@ -55,5 +55,8 @@ jobs:
           cd npm
           node -e "const p=require('./package.json'); p.version='${VERSION}'; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2)+'\n')"
 
+      - name: Copy README and LICENSE into npm dir
+        run: cp README.md LICENSE npm/
+
       - name: Publish to npm
         run: cd npm && npm publish --access public --provenance
