@@ -1,0 +1,63 @@
+{
+  "command": "/opt/homebrew/bin/npx -y @microsoft/workiq mcp",
+  "probed_at": "2026-02-19T00:53:01.625Z",
+  "server_info": {
+    "name": "WorkIQ",
+    "version": "1.0.0",
+    "description": "M365 Copilot CLI MCP Server for asking questions about emails, meetings, files, and other M365 data."
+  },
+  "capabilities": {
+    "logging": {},
+    "tools": {
+      "listChanged": true
+    }
+  },
+  "tools": [
+    {
+      "name": "accept_eula",
+      "description": "Accept the End User License Agreement (EULA) to enable full access to WorkIQ tools. The EULA URL should be https://github.com/microsoft/work-iq-mcp. This action requires explicit user confirmation and cannot be automatically invoked.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "eulaUrl": {
+            "description": "The URL of the EULA, should be https://github.com/microsoft/work-iq-mcp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "eulaUrl"
+        ]
+      },
+      "annotations": {
+        "destructiveHint": true
+      }
+    },
+    {
+      "name": "ask_work_iq",
+      "description": "Ask a question to Microsoft 365 Copilot for information about emails, meetings, files, and other M365 data.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "description": "The question to ask",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question"
+        ]
+      }
+    }
+  ],
+  "resources": {
+    "unsupported": true,
+    "error_code": -32601,
+    "message": "Method 'resources/list' is not available."
+  },
+  "prompts": {
+    "unsupported": true,
+    "error_code": -32601,
+    "message": "Method 'prompts/list' is not available."
+  },
+  "stderr": null
+}
