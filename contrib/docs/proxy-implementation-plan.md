@@ -29,6 +29,8 @@ Build a Go-based MCP compatibility proxy that wraps the proprietary `workiq mcp`
 5. **Error enrichment** — Wraps opaque errors like "Failed to create conversation" with actionable context
 6. **Traffic logging** — Appends all JSON-RPC messages to `~/.work-iq-cli/mcp-traffic.log` for debugging (workiq has no verbose mode)
 
+7. **Synthetic tools** — Exposes domain-specific tools derived from the admin permission model, giving AI assistants structured access to M365 data instead of a single "ask anything" endpoint (see [Synthetic Tools](#synthetic-tools) below)
+
 ## Architecture
 
 ```
@@ -180,6 +182,52 @@ Download from GitHub Releases, then:
 }
 ```
 
+## Synthetic Tools
+
+The Work IQ MCP server exposes a single `ask_work_iq` tool that accepts freeform natural language. The admin consent model, however, reveals 7 distinct data domains — each backed by a specific delegated permission. The proxy can synthesize domain-specific tools that construct targeted natural language questions and forward them to `ask_work_iq`, giving AI assistants a richer, more structured interface.
+
+### Permission-to-tool mapping
+
+| Permission | Synthetic tool | Parameters |
+|-----------|---------------|------------|
+| `Mail.Read` | `search_emails` | `from`, `subject`, `keywords`, `date_range` |
+| `Sites.Read.All` | `search_documents` | `filename`, `keywords`, `site`, `file_type` |
+| `Chat.Read` | `search_chats` | `person`, `keywords`, `date_range` |
+| `ChannelMessage.Read.All` | `search_channels` | `channel`, `team`, `keywords`, `date_range` |
+| `OnlineMeetingTranscript.Read.All` | `search_meetings` | `organizer`, `subject`, `date_range` |
+| `People.Read.All` | `search_people` | `name`, `department`, `project` |
+| `ExternalItem.Read.All` | `search_external` | `keywords`, `source` |
+
+### How it works
+
+Each synthetic tool:
+
+1. Receives typed parameters from the AI assistant (e.g., `search_emails` with `from: "Sarah"`, `subject: "budget"`, `date_range: "last week"`)
+2. Constructs a natural language question scoped to that domain (e.g., "Find emails from Sarah about budget from last week")
+3. Forwards the question to `ask_work_iq` via the child process
+4. Returns the result
+
+### Why this helps
+
+- AI assistants make better tool selections when tools have narrow, described purposes rather than a single catch-all
+- Typed parameters guide the assistant on what information to include in queries
+- Tool descriptions surface the actual capability boundary implied by the permission model
+- If Microsoft eventually ships granular tools, these synthetic tools approximate what that API would look like
+
+### Implementation notes
+
+- The proxy intercepts `tools/list` responses from the real server and appends the synthetic tool definitions
+- When a `tools/call` request arrives for a synthetic tool, the proxy constructs the question, wraps it as an `ask_work_iq` call, and forwards it to the child
+- The original `ask_work_iq` tool remains available for freeform queries that don't fit a single domain
+- Question construction templates should be tunable — start with simple string interpolation, iterate based on result quality
+- All parameters should be optional — the tool works with as few or as many as the assistant provides
+
+### Open questions
+
+- [ ] Does scoping the question to a domain (e.g., "Search my emails for...") produce better results from `ask_work_iq` than freeform? Needs testing.
+- [ ] Should synthetic tools be additive (alongside `ask_work_iq`) or replace it? Recommend additive — keep `ask_work_iq` as a fallback for cross-domain or ambiguous queries.
+- [ ] How should `date_range` be parameterized — freeform string ("last week"), structured (`{start, end}`), or both?
+
 ## Testing
 
 1. **Unit test the proxy** — Send JSON-RPC messages via stdin, verify correct responses on stdout. Use the existing `tools/mcp-probe.js` to probe the proxy the same way we probed the raw server.
@@ -187,10 +235,15 @@ Download from GitHub Releases, then:
    - `initialize` response includes prompts + resources capabilities
    - `prompts/list` returns empty list (no -32601)
    - `resources/list` returns empty list (no -32601)
-   - `tools/list` returns the real 2 tools from workiq
+   - `tools/list` returns the real 2 tools from workiq plus 7 synthetic tools
    - Auth pre-flight catches missing token cache
    - Traffic log file is written
-3. **Claude Code end-to-end** — Add the proxy to `.mcp.json`, start Claude Code, verify `/mcp` shows the server connected and tools available
+3. **Synthetic tool test** — Verify each synthetic tool:
+   - Appears in `tools/list` with correct name, description, and parameter schema
+   - Constructs the expected natural language question from parameters
+   - Forwards to `ask_work_iq` correctly
+   - Works with partial parameters (e.g., `search_emails` with only `from` specified)
+4. **End-to-end test** — Add the proxy to `.mcp.json`, start an MCP client, verify the server connects and all tools (native + synthetic) are available
 
 ## Open decisions for the implementing agent
 

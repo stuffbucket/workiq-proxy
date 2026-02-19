@@ -1,0 +1,18 @@
+{
+  "name": "@stuffbucket/workiq-proxy",
+  "version": "0.1.0",
+  "description": "MCP compatibility proxy for Microsoft Work IQ",
+  "bin": {
+    "workiq-proxy": "run.js"
+  },
+  "scripts": {
+    "postinstall": "node postinstall.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/stuffbucket/workiq-proxy"
+  },
+  "license": "MIT",
+  "os": ["darwin", "linux", "win32"],
+  "cpu": ["x64", "arm64"]
+}
