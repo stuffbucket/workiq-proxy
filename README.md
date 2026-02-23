@@ -17,44 +17,53 @@ It:
 1. **Intercepts unsupported methods** — Returns empty valid responses for `prompts/list`, `resources/list`, and `resources/templates/list`
 2. **Patches initialize capabilities** — Adds `prompts` and `resources` so clients see a fully capable server
 3. **Self-disables** — If a future Work IQ version declares these capabilities, the proxy stops intercepting
-4. **Auth pre-flight** — Checks for cached auth tokens before forwarding `ask_work_iq`, returning an actionable error instead of letting the binary block stdio with a browser flow
-5. **Error enrichment** — Wraps opaque errors like "Failed to create conversation" with troubleshooting context
-6. **Synthetic tools** — Exposes 7 domain-specific tools (`search_emails`, `search_documents`, `search_chats`, `search_channels`, `search_meetings`, `search_people`, `search_external`) backed by `ask_work_iq`
+4. **Error enrichment** — Wraps opaque errors like "Failed to create conversation" with troubleshooting context
+5. **Synthetic tools** — Exposes 7 domain-specific tools (`search_emails`, `search_documents`, `search_chats`, `search_channels`, `search_meetings`, `search_people`, `search_external`) backed by `ask_work_iq`
+6. **CLI passthrough** — When run from an interactive terminal, delegates to the underlying `workiq` CLI (EULA acceptance, auth, queries) so you only need one package
 7. **Traffic logging** — Logs all JSON-RPC messages to `~/.work-iq-cli/mcp-traffic.log`
 
 ## Install
-
-### Via npm (recommended)
 
 ```bash
 npm install -g @stuffbucket/workiq-proxy
 ```
 
-### Direct binary
-
-Download from [GitHub Releases](https://github.com/stuffbucket/workiq-proxy/releases) and place in your PATH.
+Or download a binary from [GitHub Releases](https://github.com/stuffbucket/workiq-proxy/releases) and place it in your PATH.
 
 ## Prerequisites
 
-Before using the proxy, authenticate Work IQ from your terminal:
+Before using the proxy, set up Work IQ from your terminal:
 
 ```bash
-# Accept the EULA
-npx -y @microsoft/workiq accept-eula
+# First run: accepts EULA interactively, then triggers browser auth
+npx -y @stuffbucket/workiq-proxy ask
+```
 
-# Trigger browser auth and cache tokens
-npx -y @microsoft/workiq ask -q "What's on my calendar?"
+The interactive session walks you through EULA acceptance and signs you in via the browser. Once complete, the MCP server reuses cached tokens silently.
+
+To verify auth works non-interactively:
+
+```bash
+npx -y @stuffbucket/workiq-proxy ask -q "What's on my calendar?"
 ```
 
 ## Configure
 
 ### Claude Code
 
+**Project-level** (adds to `.mcp.json` in current directory):
+
 ```bash
 claude mcp add --transport stdio workiq --scope project -- npx -y @stuffbucket/workiq-proxy
 ```
 
-Or add to `.mcp.json`:
+**User-level** (available in all projects):
+
+```bash
+claude mcp add --transport stdio workiq --scope user -- npx -y @stuffbucket/workiq-proxy
+```
+
+Or add to `.mcp.json` manually:
 
 ```json
 {
@@ -68,28 +77,49 @@ Or add to `.mcp.json`:
 }
 ```
 
-### VS Code
+### VS Code / GitHub Copilot
 
-Add to your MCP settings:
+**Project-level** — add to `.vscode/mcp.json`:
 
 ```json
 {
-  "workiq": {
-    "command": "npx",
-    "args": ["-y", "@stuffbucket/workiq-proxy"],
-    "tools": ["*"]
+  "servers": {
+    "workiq": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@stuffbucket/workiq-proxy"]
+    }
   }
 }
 ```
 
-### Direct binary
+**User-level** — add to VS Code user settings (`settings.json`):
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "workiq": {
+        "type": "stdio",
+        "command": "npx",
+        "args": ["-y", "@stuffbucket/workiq-proxy"]
+      }
+    }
+  }
+}
+```
+
+### OpenAI Codex CLI
+
+Add to `.codex/mcp.json`:
 
 ```json
 {
   "mcpServers": {
     "workiq": {
       "type": "stdio",
-      "command": "/path/to/workiq-proxy"
+      "command": "npx",
+      "args": ["-y", "@stuffbucket/workiq-proxy"]
     }
   }
 }
@@ -99,19 +129,19 @@ Add to your MCP settings:
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--workiq-cmd` | `npx -y @microsoft/workiq mcp` | Command to spawn the Work IQ MCP server |
+| `--workiq-cmd` | `npx -y @microsoft/workiq` | Base command to reach the Work IQ CLI (proxy appends `mcp` for MCP mode) |
 | `--log-file` | `~/.work-iq-cli/mcp-traffic.log` | Override log file path |
 | `--no-log` | `false` | Disable traffic logging |
 
-Example with a globally installed binary:
+Example with a globally installed Work IQ CLI:
 
 ```json
 {
   "mcpServers": {
     "workiq": {
       "type": "stdio",
-      "command": "workiq-proxy",
-      "args": ["--workiq-cmd", "workiq mcp"]
+      "command": "npx",
+      "args": ["-y", "@stuffbucket/workiq-proxy", "--workiq-cmd", "workiq"]
     }
   }
 }
@@ -128,9 +158,7 @@ You should see 9 tools: `accept_eula`, `ask_work_iq`, plus the 7 synthetic searc
 
 ## Troubleshoot
 
-**"No cached auth token found"** — Run `workiq ask -q "What's on my calendar?"` in your terminal to authenticate.
-
-**"Failed to create conversation"** — Your auth token expired or your Microsoft 365 Copilot license is not active. Re-authenticate from the terminal.
+**"Failed to create conversation"** — Your auth token expired or your Microsoft 365 Copilot license is not active. Re-authenticate from the terminal with `workiq-proxy ask -q "What's on my calendar?"`.
 
 **Server not connecting** — Check `~/.work-iq-cli/mcp-traffic.log` for the full JSON-RPC transcript.
 

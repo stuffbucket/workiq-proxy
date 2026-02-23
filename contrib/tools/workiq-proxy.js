@@ -56,9 +56,11 @@ function rpcResult(id, result) {
   return JSON.stringify({ jsonrpc: "2.0", id, result }) + "\n";
 }
 
-function rpcError(id, code, message) {
-  return JSON.stringify({ jsonrpc: "2.0", id, error: { code, message } }) + "\n";
-}
+// rpcError is reserved for future use when the proxy needs to synthesize
+// JSON-RPC error responses (e.g. for auth or method interception).
+// function rpcError(id, code, message) {
+//   return JSON.stringify({ jsonrpc: "2.0", id, error: { code, message } }) + "\n";
+// }
 
 // --- Auth pre-flight ---
 

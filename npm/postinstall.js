@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 "use strict";
 
+// Generic postinstall binary downloader.
+// All project-specific values come from package.json.
+
 const https = require("https");
 const http = require("http");
 const fs = require("fs");
@@ -8,65 +11,59 @@ const path = require("path");
 const os = require("os");
 
 const pkg = require("./package.json");
+const config = pkg.nativeBinary;
 const VERSION = pkg.version;
 
-const PLATFORM_MAP = {
-  "darwin-x64": "workiq-proxy-darwin-x64",
-  "darwin-arm64": "workiq-proxy-darwin-arm64",
-  "linux-x64": "workiq-proxy-linux-x64",
-  "linux-arm64": "workiq-proxy-linux-arm64",
-  "win32-x64": "workiq-proxy-win-x64.exe",
-  "win32-arm64": "workiq-proxy-win-arm64.exe",
-};
-
 const key = `${os.platform()}-${os.arch()}`;
-const binary = PLATFORM_MAP[key];
+const binary = config.platforms[key];
 
 if (!binary) {
-  console.error(`workiq-proxy: unsupported platform ${key}`);
+  console.error(`${pkg.name}: unsupported platform ${key}`);
   process.exit(1);
 }
 
-const binDir = path.join(__dirname, "bin");
+const binDir = path.join(__dirname, config.binDir);
 const dest = path.join(binDir, binary);
 
 if (fs.existsSync(dest)) {
   process.exit(0);
 }
 
-const url = `https://github.com/stuffbucket/workiq-proxy/releases/download/v${VERSION}/${binary}`;
+const url = config.downloadURL
+  .replace("{{version}}", VERSION)
+  .replace("{{binary}}", binary);
 
 fs.mkdirSync(binDir, { recursive: true });
 
-function download(url, dest, redirects) {
+function download(downloadUrl, downloadDest, redirects) {
   if (redirects > 5) {
-    console.error("workiq-proxy: too many redirects");
+    console.error(`${pkg.name}: too many redirects`);
     process.exit(1);
   }
 
-  const client = url.startsWith("https") ? https : http;
-  client.get(url, (res) => {
+  const client = downloadUrl.startsWith("https") ? https : http;
+  client.get(downloadUrl, (res) => {
     if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-      download(res.headers.location, dest, redirects + 1);
+      download(res.headers.location, downloadDest, redirects + 1);
       return;
     }
     if (res.statusCode !== 200) {
-      console.error(`workiq-proxy: download failed (HTTP ${res.statusCode}) from ${url}`);
-      console.error("You can download the binary manually from https://github.com/stuffbucket/workiq-proxy/releases");
+      console.error(`${pkg.name}: download failed (HTTP ${res.statusCode}) from ${downloadUrl}`);
+      console.error(`You can download the binary manually from the releases page.`);
       process.exit(1);
     }
-    const file = fs.createWriteStream(dest);
+    const file = fs.createWriteStream(downloadDest);
     res.pipe(file);
     file.on("finish", () => {
       file.close();
-      fs.chmodSync(dest, 0o755);
+      fs.chmodSync(downloadDest, 0o755);
     });
   }).on("error", (err) => {
-    console.error(`workiq-proxy: download failed: ${err.message}`);
-    console.error("You can download the binary manually from https://github.com/stuffbucket/workiq-proxy/releases");
+    console.error(`${pkg.name}: download failed: ${err.message}`);
+    console.error(`You can download the binary manually from the releases page.`);
     process.exit(1);
   });
 }
 
-console.log(`workiq-proxy: downloading ${binary} v${VERSION}...`);
+console.log(`${pkg.name}: downloading ${binary} v${VERSION}...`);
 download(url, dest, 0);

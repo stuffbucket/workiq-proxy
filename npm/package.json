@@ -17,5 +17,22 @@
   "cpu": ["x64", "arm64"],
   "dependencies": {
     "@microsoft/workiq": ">=0.2.0"
+  },
+  "nativeBinary": {
+    "binDir": "bin",
+    "platforms": {
+      "darwin-x64": "workiq-proxy-darwin-x64",
+      "darwin-arm64": "workiq-proxy-darwin-arm64",
+      "linux-x64": "workiq-proxy-linux-x64",
+      "linux-arm64": "workiq-proxy-linux-arm64",
+      "win32-x64": "workiq-proxy-win-x64.exe",
+      "win32-arm64": "workiq-proxy-win-arm64.exe"
+    },
+    "downloadURL": "https://github.com/stuffbucket/workiq-proxy/releases/download/v{{version}}/{{binary}}",
+    "resolve": {
+      "module": "@microsoft/workiq/bin/workiq.js",
+      "flag": "--workiq-cmd",
+      "prefix": "node"
+    }
   }
 }

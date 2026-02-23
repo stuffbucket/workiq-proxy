@@ -1,0 +1,40 @@
+version: "2"
+
+run:
+  timeout: 3m
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - ineffassign
+    - gocritic
+    - misspell
+    - unconvert
+    - unparam
+    - prealloc
+    - gosec
+
+  settings:
+    gosec:
+      excludes:
+        - G104
+        - G204
+        - G304
+    misspell:
+      locale: US
+
+  exclusions:
+    rules:
+      - path: _test\.go$
+        linters:
+          - errcheck
+          - gosec
+      - path: proxy\.go$
+        linters:
+          - errcheck
+      - path: log\.go$
+        linters:
+          - errcheck

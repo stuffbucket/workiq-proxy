@@ -1,0 +1,28 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.stuffbucket/workiq-proxy",
+  "title": "Work IQ Proxy",
+  "description": "MCP compatibility proxy for Microsoft Work IQ. Fixes protocol issues and adds domain-specific search tools for emails, documents, chats, channels, meetings, and people.",
+  "repository": {
+    "url": "https://github.com/stuffbucket/workiq-proxy",
+    "source": "github"
+  },
+  "version": "0.1.2",
+  "websiteUrl": "https://github.com/stuffbucket/workiq-proxy",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@stuffbucket/workiq-proxy",
+      "version": "0.1.2",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "value": "mcp",
+          "type": "positional"
+        }
+      ]
+    }
+  ]
+}

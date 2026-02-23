@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -90,11 +91,14 @@ func TestPatchCapabilities(t *testing.T) {
 	t.Run("adds missing prompts and resources", func(t *testing.T) {
 		interceptPrompts = true
 		interceptResources = true
-		input := `{"capabilities":{"logging":{},"tools":{"listChanged":true}},"serverInfo":{"name":"WorkIQ"}}`
+		input := `{"protocolVersion":"2024-11-05","capabilities":{"logging":{},"tools":{"listChanged":true}},"serverInfo":{"name":"WorkIQ"}}`
 		result := patchCapabilities(json.RawMessage(input))
 		var parsed initResult
 		if err := json.Unmarshal(result, &parsed); err != nil {
 			t.Fatalf("unmarshal: %v", err)
+		}
+		if parsed.ProtocolVersion != "2024-11-05" {
+			t.Errorf("protocolVersion lost: got %q", parsed.ProtocolVersion)
 		}
 		if _, ok := parsed.Capabilities["prompts"]; !ok {
 			t.Error("prompts not added")
@@ -147,20 +151,40 @@ func TestPatchCapabilities(t *testing.T) {
 			t.Errorf("expected passthrough, got %s", string(result))
 		}
 	})
+
+	t.Run("preserves unknown fields", func(t *testing.T) {
+		interceptPrompts = true
+		interceptResources = true
+		input := `{"protocolVersion":"2024-11-05","capabilities":{"tools":{}},"serverInfo":{"name":"WorkIQ"},"instructions":"Be helpful","futureField":42}`
+		result := patchCapabilities(json.RawMessage(input))
+		var m map[string]json.RawMessage
+		json.Unmarshal(result, &m)
+		if string(m["protocolVersion"]) != `"2024-11-05"` {
+			t.Errorf("protocolVersion lost: got %s", string(m["protocolVersion"]))
+		}
+		if string(m["instructions"]) != `"Be helpful"` {
+			t.Errorf("instructions lost: got %s", string(m["instructions"]))
+		}
+		if string(m["futureField"]) != `42` {
+			t.Errorf("futureField lost: got %s", string(m["futureField"]))
+		}
+	})
 }
 
 func TestPatchToolsList(t *testing.T) {
 	input := `{"tools":[{"name":"accept_eula"},{"name":"ask_work_iq"}]}`
 	result := patchToolsList(json.RawMessage(input))
-	var parsed toolsListResult
+	var parsed map[string]json.RawMessage
 	if err := json.Unmarshal(result, &parsed); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if len(parsed.Tools) != 9 {
-		t.Errorf("expected 9 tools, got %d", len(parsed.Tools))
+	var tools []json.RawMessage
+	json.Unmarshal(parsed["tools"], &tools)
+	if len(tools) != 9 {
+		t.Errorf("expected 9 tools, got %d", len(tools))
 	}
 	names := make(map[string]bool)
-	for _, raw := range parsed.Tools {
+	for _, raw := range tools {
 		var tool struct{ Name string }
 		json.Unmarshal(raw, &tool)
 		names[tool.Name] = true
@@ -170,25 +194,113 @@ func TestPatchToolsList(t *testing.T) {
 			t.Errorf("missing: %s", exp)
 		}
 	}
+
+	t.Run("preserves unknown fields", func(t *testing.T) {
+		input := `{"tools":[{"name":"ask_work_iq"}],"nextCursor":"abc123"}`
+		result := patchToolsList(json.RawMessage(input))
+		var m map[string]json.RawMessage
+		json.Unmarshal(result, &m)
+		if string(m["nextCursor"]) != `"abc123"` {
+			t.Errorf("nextCursor lost: got %s", string(m["nextCursor"]))
+		}
+	})
 }
 
 func TestEnrichToolCallResult(t *testing.T) {
 	t.Run("enriches conversation error", func(t *testing.T) {
 		content, _ := json.Marshal([]contentItem{{Type: "text", Text: "Failed to create conversation: error"}})
-		input, _ := json.Marshal(toolCallResult{Content: content, IsError: true})
+		input, _ := json.Marshal(map[string]interface{}{"content": json.RawMessage(content), "isError": true})
 		result := enrichToolCallResult(json.RawMessage(input))
-		var parsed toolCallResult
+		var parsed map[string]json.RawMessage
 		json.Unmarshal(result, &parsed)
 		var items []contentItem
-		json.Unmarshal(parsed.Content, &items)
+		json.Unmarshal(parsed["content"], &items)
 		if len(items) != 2 {
 			t.Fatalf("expected 2 items, got %d", len(items))
+		}
+		if !strings.Contains(items[1].Text, "auth token expired") {
+			t.Error("expected auth token hint")
+		}
+	})
+
+	t.Run("enriches token protection error", func(t *testing.T) {
+		content, _ := json.Marshal([]contentItem{{Type: "text", Text: "Error 530084: token protection policy blocked access"}})
+		input, _ := json.Marshal(map[string]interface{}{"content": json.RawMessage(content), "isError": true})
+		result := enrichToolCallResult(json.RawMessage(input))
+		var parsed map[string]json.RawMessage
+		json.Unmarshal(result, &parsed)
+		var items []contentItem
+		json.Unmarshal(parsed["content"], &items)
+		if len(items) != 2 {
+			t.Fatalf("expected 2 items, got %d", len(items))
+		}
+		if !strings.Contains(items[1].Text, "token protection") {
+			t.Error("expected token protection hint")
+		}
+	})
+
+	t.Run("enriches conditional access error", func(t *testing.T) {
+		content, _ := json.Marshal([]contentItem{{Type: "text", Text: "AADSTS50076: some conditional access error"}})
+		input, _ := json.Marshal(map[string]interface{}{"content": json.RawMessage(content), "isError": true})
+		result := enrichToolCallResult(json.RawMessage(input))
+		var parsed map[string]json.RawMessage
+		json.Unmarshal(result, &parsed)
+		var items []contentItem
+		json.Unmarshal(parsed["content"], &items)
+		if len(items) != 2 {
+			t.Fatalf("expected 2 items, got %d", len(items))
+		}
+		if !strings.Contains(items[1].Text, "conditional access") {
+			t.Error("expected conditional access hint")
+		}
+	})
+
+	t.Run("preserves unknown fields", func(t *testing.T) {
+		content, _ := json.Marshal([]contentItem{{Type: "text", Text: "Failed to create conversation: error"}})
+		input, _ := json.Marshal(map[string]interface{}{"content": json.RawMessage(content), "isError": true, "_meta": map[string]string{"traceId": "xyz"}})
+		result := enrichToolCallResult(json.RawMessage(input))
+		var parsed map[string]json.RawMessage
+		json.Unmarshal(result, &parsed)
+		if _, ok := parsed["_meta"]; !ok {
+			t.Error("_meta field lost during enrichment")
+		}
+	})
+
+	t.Run("enriches eula error", func(t *testing.T) {
+		content, _ := json.Marshal([]contentItem{{Type: "text", Text: "You must accept the EULA before using this tool"}})
+		input, _ := json.Marshal(map[string]interface{}{"content": json.RawMessage(content), "isError": true})
+		result := enrichToolCallResult(json.RawMessage(input))
+		var parsed map[string]json.RawMessage
+		json.Unmarshal(result, &parsed)
+		var items []contentItem
+		json.Unmarshal(parsed["content"], &items)
+		if len(items) != 2 {
+			t.Fatalf("expected 2 items, got %d", len(items))
+		}
+		if !strings.Contains(items[1].Text, "accept_eula") {
+			t.Error("expected EULA acceptance hint")
+		}
+	})
+
+	t.Run("enriches interaction required error", func(t *testing.T) {
+		content, _ := json.Marshal([]contentItem{{Type: "text", Text: "MsalUiRequiredException: InteractionRequired - claims challenge"}})
+		input, _ := json.Marshal(map[string]interface{}{"content": json.RawMessage(content), "isError": true})
+		result := enrichToolCallResult(json.RawMessage(input))
+		var parsed map[string]json.RawMessage
+		json.Unmarshal(result, &parsed)
+		var items []contentItem
+		json.Unmarshal(parsed["content"], &items)
+		if len(items) != 2 {
+			t.Fatalf("expected 2 items, got %d", len(items))
+		}
+		if !strings.Contains(items[1].Text, "interactive browser") {
+			t.Error("expected interactive auth hint")
 		}
 	})
 
 	t.Run("passes through normal", func(t *testing.T) {
 		content, _ := json.Marshal([]contentItem{{Type: "text", Text: "Here are your emails"}})
-		input, _ := json.Marshal(toolCallResult{Content: content})
+		input, _ := json.Marshal(map[string]interface{}{"content": json.RawMessage(content)})
 		result := enrichToolCallResult(json.RawMessage(input))
 		if string(result) != string(input) {
 			t.Error("expected passthrough")
