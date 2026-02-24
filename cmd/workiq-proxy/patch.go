@@ -76,7 +76,7 @@ func enrichToolCallResult(raw json.RawMessage) json.RawMessage {
 	contentLower := strings.ToLower(contentStr)
 	switch {
 	case strings.Contains(contentLower, "eula") || strings.Contains(contentLower, "license agreement") || strings.Contains(contentLower, "accept_eula"):
-		hint = "\n\n[workiq-proxy] The Work IQ EULA has not been accepted. Run: workiq accept-eula (or: npx -y @microsoft/workiq accept-eula) in your terminal, or call the accept_eula tool with eulaUrl set to https://github.com/microsoft/work-iq-mcp"
+		hint = "\n\n[workiq-proxy] The Work IQ EULA has not been accepted. Run: workiq-proxy accept-eula (or: npx @stuffbucket/workiq-proxy accept-eula) in your terminal, or call the accept_eula tool with eulaUrl set to https://github.com/microsoft/work-iq-mcp"
 	case strings.Contains(contentStr, "530084") || strings.Contains(contentStr, "token protection"):
 		hint = "\n\n[workiq-proxy] Your organization requires token protection (error 530084). Ask your IT admin to exempt the Work IQ CLI app (ba081686-5d24-4bc6-a0d6-d034ecffed87) from the token protection conditional access policy."
 	case strings.Contains(contentStr, "AADSTS") || strings.Contains(contentStr, "security policy"):

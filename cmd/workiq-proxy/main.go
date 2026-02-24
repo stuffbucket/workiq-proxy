@@ -41,6 +41,13 @@ func main() {
 		return
 	}
 
+	// accept-eula: drive the MCP accept_eula tool call from the CLI.
+	if len(trailing) > 0 && trailing[0] == "accept-eula" {
+		cmdParts = append(cmdParts, "mcp")
+		runAcceptEula(cmdParts)
+		return
+	}
+
 	if tty {
 		switch {
 		// CLI mode: TTY + trailing args → passthrough to workiq CLI.
@@ -64,6 +71,7 @@ func main() {
 			fmt.Fprintln(os.Stderr, "")
 			fmt.Fprintln(os.Stderr, "Commands:")
 			fmt.Fprintln(os.Stderr, "  mcp            Start MCP proxy server (stdio)")
+			fmt.Fprintln(os.Stderr, "  accept-eula    Accept the Work IQ EULA")
 			fmt.Fprintln(os.Stderr, "  ask -q \"...\"   Ask Microsoft 365 Copilot a question")
 			fmt.Fprintln(os.Stderr, "  repl           Interactive MCP JSON-RPC testing mode")
 			fmt.Fprintln(os.Stderr, "  version        Show workiq CLI version")

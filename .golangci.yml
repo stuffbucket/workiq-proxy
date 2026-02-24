@@ -36,6 +36,9 @@ linters:
       - path: proxy\.go$
         linters:
           - errcheck
+      - path: eula\.go$
+        linters:
+          - errcheck
       - path: log\.go$
         linters:
           - errcheck
