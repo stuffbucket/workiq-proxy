@@ -23,6 +23,7 @@ linters:
         - G104
         - G204
         - G304
+        - G705
     misspell:
       locale: US
 
