@@ -39,6 +39,9 @@ linters:
       - path: eula\.go$
         linters:
           - errcheck
+      - path: repl\.go$
+        linters:
+          - errcheck
       - path: log\.go$
         linters:
           - errcheck

@@ -1,11 +1,15 @@
 package main
 
 import (
+	_ "embed"
 	"flag"
 	"fmt"
 	"os"
 	"strings"
 )
+
+//go:embed banner.txt
+var banner string
 
 var (
 	workiqCmd = flag.String("workiq-cmd", "npx -y @microsoft/workiq", "Base command to reach the Work IQ CLI")
@@ -48,40 +52,55 @@ func main() {
 		return
 	}
 
+	// help: show usage and exit.
+	if len(trailing) > 0 && trailing[0] == "help" {
+		printUsage()
+		return
+	}
+
 	if tty {
 		switch {
 		// CLI mode: TTY + trailing args → passthrough to workiq CLI.
-		case len(trailing) > 0 && trailing[0] != "repl":
+		case len(trailing) > 0 && trailing[0] != "json":
 			cmdParts = append(cmdParts, trailing...)
 			runPassthrough(cmdParts)
 			return
 
-		// REPL mode: TTY + "repl" arg → MCP proxy with interactive wrapper.
-		case len(trailing) > 0 && trailing[0] == "repl":
+		// JSON mode: TTY + "json" arg → MCP proxy with interactive JSON-RPC.
+		case len(trailing) > 0 && trailing[0] == "json":
 			cmdParts = append(cmdParts, "mcp")
-			fmt.Fprintln(os.Stderr, "workiq-proxy REPL — paste JSON-RPC messages, one per line")
+			fmt.Fprintln(os.Stderr, "workiq-proxy JSON-RPC mode — paste JSON-RPC messages, one per line")
 			fmt.Fprintln(os.Stderr, "Press Ctrl-D to exit.")
 			fmt.Fprintln(os.Stderr, "")
 			runProxy(cmdParts, true)
 			return
 
-		// Usage: TTY + no args → show help and exit.
+		// REPL: TTY + no args → interactive REPL.
 		default:
-			fmt.Fprintln(os.Stderr, "Usage: workiq-proxy <command> [args...]")
-			fmt.Fprintln(os.Stderr, "")
-			fmt.Fprintln(os.Stderr, "Commands:")
-			fmt.Fprintln(os.Stderr, "  mcp            Start MCP proxy server (stdio)")
-			fmt.Fprintln(os.Stderr, "  accept-eula    Accept the Work IQ EULA")
-			fmt.Fprintln(os.Stderr, "  ask -q \"...\"   Ask Microsoft 365 Copilot a question")
-			fmt.Fprintln(os.Stderr, "  repl           Interactive MCP JSON-RPC testing mode")
-			fmt.Fprintln(os.Stderr, "  version        Show workiq CLI version")
-			fmt.Fprintln(os.Stderr, "")
-			fmt.Fprintln(os.Stderr, "MCP clients launch this command with piped stdio (no TTY).")
-			os.Exit(0)
+			cmdParts = append(cmdParts, "mcp")
+			runRepl(cmdParts)
+			return
 		}
 	}
 
 	// No TTY, no subcommand → MCP proxy mode (implicit).
 	cmdParts = append(cmdParts, "mcp")
 	runProxy(cmdParts, false)
+}
+
+func printUsage() {
+	fmt.Fprint(os.Stderr, banner)
+	fmt.Fprintln(os.Stderr, "")
+	fmt.Fprintln(os.Stderr, "Usage: workiq-proxy [command] [args...]")
+	fmt.Fprintln(os.Stderr, "")
+	fmt.Fprintln(os.Stderr, "Commands:")
+	fmt.Fprintln(os.Stderr, "  accept-eula    Accept the Work IQ EULA")
+	fmt.Fprintln(os.Stderr, "  ask -q \"...\"   Ask Microsoft 365 Copilot a question")
+	fmt.Fprintln(os.Stderr, "  mcp            Start MCP proxy server (stdio)")
+	fmt.Fprintln(os.Stderr, "  json           Interactive JSON-RPC testing mode")
+	fmt.Fprintln(os.Stderr, "  version        Show workiq CLI version")
+	fmt.Fprintln(os.Stderr, "  help           Show this help")
+	fmt.Fprintln(os.Stderr, "")
+	fmt.Fprintln(os.Stderr, "Run with no arguments in a terminal for interactive REPL.")
+	fmt.Fprintln(os.Stderr, "MCP clients launch this command with piped stdio (no TTY).")
 }
