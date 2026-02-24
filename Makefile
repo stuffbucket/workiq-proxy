@@ -12,7 +12,7 @@ PLATFORMS = \
 	windows/amd64/workiq-proxy-win-x64.exe \
 	windows/arm64/workiq-proxy-win-arm64.exe
 
-.PHONY: build test vet clean all setup lint lint-go lint-js
+.PHONY: build test vet clean all setup lint lint-go lint-js release
 
 # ── Development setup ────────────────────────────────────────────
 
@@ -61,3 +61,18 @@ all: clean lint test
 		echo "Building $$OUTPUT ($$GOOS/$$GOARCH)"; \
 		GOOS=$$GOOS GOARCH=$$GOARCH go build -ldflags "$(LDFLAGS)" -o $$OUTPUT $(MODULE); \
 	done
+
+# ── Release ──────────────────────────────────────────────────────
+# Usage: make release v=0.2.0
+
+release:
+ifndef v
+	$(error Usage: make release v=0.2.0)
+endif
+	@echo "==> Running full build pipeline..."
+	$(MAKE) all
+	@echo "==> Tagging v$(v)..."
+	git tag v$(v)
+	@echo "==> Pushing tag v$(v) to origin..."
+	git push origin v$(v)
+	@echo "==> Release v$(v) triggered. GitHub Actions will create the release and publish to npm."

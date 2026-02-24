@@ -15,6 +15,7 @@ var (
 	workiqCmd = flag.String("workiq-cmd", "npx -y @microsoft/workiq", "Base command to reach the Work IQ CLI")
 	logFile   = flag.String("log-file", "", "Override log file path (default: ~/.work-iq-cli/mcp-traffic.log)")
 	noLog     = flag.Bool("no-log", false, "Disable traffic logging")
+	servePort = flag.Int("port", 11435, "Port for serve mode (seeks next available if busy)")
 )
 
 func isTerminal() bool {
@@ -49,6 +50,13 @@ func main() {
 	if len(trailing) > 0 && trailing[0] == "accept-eula" {
 		cmdParts = append(cmdParts, "mcp")
 		runAcceptEula(cmdParts)
+		return
+	}
+
+	// serve: OpenAI-compatible HTTP API.
+	if len(trailing) > 0 && trailing[0] == "serve" {
+		cmdParts = append(cmdParts, "mcp")
+		runServe(cmdParts, *servePort)
 		return
 	}
 
@@ -97,6 +105,7 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, "  accept-eula    Accept the Work IQ EULA")
 	fmt.Fprintln(os.Stderr, "  ask -q \"...\"   Ask Microsoft 365 Copilot a question")
 	fmt.Fprintln(os.Stderr, "  mcp            Start MCP proxy server (stdio)")
+	fmt.Fprintln(os.Stderr, "  serve          Start OpenAI-compatible HTTP API (localhost)")
 	fmt.Fprintln(os.Stderr, "  json           Interactive JSON-RPC testing mode")
 	fmt.Fprintln(os.Stderr, "  version        Show workiq CLI version")
 	fmt.Fprintln(os.Stderr, "  help           Show this help")

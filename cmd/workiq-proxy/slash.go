@@ -20,6 +20,12 @@ type slashCommand struct {
 
 var slashCommands = []slashCommand{
 	{name: "/ask", desc: "Ask Microsoft 365 Copilot a question", hasArg: true},
+	{name: "/emails", desc: "Search emails (from: subject: date:)", hasArg: true},
+	{name: "/docs", desc: "Search documents (name: site: type:)", hasArg: true},
+	{name: "/chats", desc: "Search chats (with: date:)", hasArg: true},
+	{name: "/channels", desc: "Search channels (team: channel: date:)", hasArg: true},
+	{name: "/meetings", desc: "Search meetings (by: subject: date:)", hasArg: true},
+	{name: "/people", desc: "Search people (name: dept: project:)", hasArg: true},
 	{name: "/accept-eula", desc: "Accept the Work IQ EULA"},
 	{name: "/tools", desc: "List available MCP tools"},
 	{name: "/help", desc: "Show available commands"},
@@ -51,23 +57,31 @@ var (
 // ── Bubble Tea model ────────────────────────────────────────────────
 
 type promptModel struct {
-	input     textinput.Model
-	matches   []slashCommand // filtered slash commands
-	cursor    int            // selected index inside matches
-	showMenu  bool
-	done      bool
-	quit      bool // Ctrl-D or double Ctrl-C
-	value     string
-	lastCtrlC time.Time // tracks rapid double Ctrl-C
+	input    textinput.Model
+	matches  []slashCommand // filtered slash commands
+	cursor   int            // selected index inside matches
+	showMenu bool
+	done     bool
+	quit     bool // Ctrl-D or double Ctrl-C
+	value    string
+
+	// Session history (shared across prompts via pointer).
+	history  *[]string
+	histIdx  int    // current position in history; len(history) == "new line"
+	savedBuf string // stash the in-progress input when browsing history
 }
 
-func newPromptModel() promptModel {
+func newPromptModel(history *[]string) promptModel {
 	ti := textinput.New()
 	ti.Prompt = promptStyle.Render("wiq") + " " + subtleStyle.Render("›") + " "
 	ti.Focus()
 	ti.CharLimit = 500
 	ti.ShowSuggestions = false // we render our own dropdown
-	return promptModel{input: ti}
+	return promptModel{
+		input:   ti,
+		history: history,
+		histIdx: len(*history),
+	}
 }
 
 func (m promptModel) Init() tea.Cmd {
@@ -85,13 +99,13 @@ func (m promptModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case tea.KeyCtrlC:
 			now := time.Now()
-			if now.Sub(m.lastCtrlC) < 500*time.Millisecond {
+			if now.Sub(lastCtrlC) < 500*time.Millisecond {
 				// Double Ctrl-C → quit the REPL entirely.
 				m.quit = true
 				m.done = true
 				return m, tea.Quit
 			}
-			m.lastCtrlC = now
+			lastCtrlC = now
 			if m.input.Value() != "" {
 				// First Ctrl-C with text → clear the input.
 				m.input.Reset()
@@ -143,6 +157,16 @@ func (m promptModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, nil
 			}
+			// History: move backward.
+			if m.history != nil && len(*m.history) > 0 && m.histIdx > 0 {
+				if m.histIdx == len(*m.history) {
+					m.savedBuf = m.input.Value()
+				}
+				m.histIdx--
+				m.input.SetValue((*m.history)[m.histIdx])
+				m.input.CursorEnd()
+			}
+			return m, nil
 
 		case tea.KeyDown:
 			if m.showMenu && len(m.matches) > 0 {
@@ -152,6 +176,17 @@ func (m promptModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, nil
 			}
+			// History: move forward.
+			if m.history != nil && m.histIdx < len(*m.history) {
+				m.histIdx++
+				if m.histIdx == len(*m.history) {
+					m.input.SetValue(m.savedBuf)
+				} else {
+					m.input.SetValue((*m.history)[m.histIdx])
+				}
+				m.input.CursorEnd()
+			}
+			return m, nil
 
 		case tea.KeyEscape:
 			if m.showMenu {
@@ -229,10 +264,11 @@ func filterSlashCommands(prefix string) []slashCommand {
 }
 
 // readInput runs a Bubble Tea program to collect one line of REPL input
-// with slash-command completion.  Returns the input string and true on
-// success, or ("", false) when the user presses Ctrl-D to quit.
+// with slash-command completion and session history.
+// Returns the input string and true on success, or ("", false) when the
+// user presses Ctrl-D to quit.
 func readInput() (string, bool) {
-	p := tea.NewProgram(newPromptModel(), tea.WithOutput(os.Stderr))
+	p := tea.NewProgram(newPromptModel(&replHistory), tea.WithOutput(os.Stderr))
 	result, err := p.Run()
 	if err != nil {
 		return "", false
@@ -241,5 +277,15 @@ func readInput() (string, bool) {
 	if final.quit {
 		return "", false
 	}
+	if final.value != "" {
+		replHistory = append(replHistory, final.value)
+	}
 	return final.value, true
 }
+
+// replHistory stores all non-empty inputs for the current REPL session.
+var replHistory []string
+
+// lastCtrlC tracks the timestamp of the last Ctrl-C across prompts
+// so that two rapid presses (even across prompt boundaries) trigger quit.
+var lastCtrlC time.Time

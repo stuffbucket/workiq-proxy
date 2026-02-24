@@ -419,7 +419,7 @@ func TestRenderWithURLs(t *testing.T) {
 			},
 		},
 		{
-			name: "multi-line broken bare URL reassembled",
+			name:  "multi-line broken bare URL reassembled",
 			input: "Check https://teams.microsoft.\ncom/l/meeting/details?eventId=AAMkADkw\n\nDetails",
 			check: func(got string) error {
 				if strings.Contains(got, "\ncom/l/") {
@@ -517,6 +517,239 @@ func TestPreprocessURLs(t *testing.T) {
 			got, refs := preprocessURLs(tt.input)
 			if err := tt.check(got, refs); err != nil {
 				t.Error(err)
+			}
+		})
+	}
+}
+
+func TestParseSteeringArgs(t *testing.T) {
+	emailSpec := steeringSpecs["emails"]
+	meetingSpec := steeringSpecs["meetings"]
+	peopleSpec := steeringSpecs["people"]
+
+	tests := []struct {
+		name string
+		arg  string
+		spec steeringSpec
+		want map[string]string
+	}{
+		{
+			name: "bare text goes to default key",
+			arg:  "quarterly budget report",
+			spec: emailSpec,
+			want: map[string]string{"keywords": "quarterly budget report"},
+		},
+		{
+			name: "key:value pairs parsed",
+			arg:  "from:bob subject:budget report",
+			spec: emailSpec,
+			want: map[string]string{"from": "bob", "subject": "budget report"},
+		},
+		{
+			name: "mixed bare and keyed",
+			arg:  "quarterly stuff from:bob",
+			spec: emailSpec,
+			want: map[string]string{"keywords": "quarterly stuff", "from": "bob"},
+		},
+		{
+			name: "empty arg returns empty map",
+			arg:  "",
+			spec: emailSpec,
+			want: map[string]string{},
+		},
+		{
+			name: "unknown key treated as value",
+			arg:  "foo:bar baz",
+			spec: emailSpec,
+			want: map[string]string{"keywords": "foo:bar baz"},
+		},
+		{
+			name: "meetings default key is date_range",
+			arg:  "next week",
+			spec: meetingSpec,
+			want: map[string]string{"date_range": "next week"},
+		},
+		{
+			name: "people default key is name",
+			arg:  "Alice Smith",
+			spec: peopleSpec,
+			want: map[string]string{"name": "Alice Smith"},
+		},
+		{
+			name: "multiple keys with multi-word values",
+			arg:  "from:bob smith subject:quarterly budget date:last week",
+			spec: emailSpec,
+			want: map[string]string{"from": "bob smith", "subject": "quarterly budget", "date_range": "last week"},
+		},
+		{
+			name: "quoted value kept as single token",
+			arg:  `from:"andy huntington" subject:budget`,
+			spec: emailSpec,
+			want: map[string]string{"from": "andy huntington", "subject": "budget"},
+		},
+		{
+			name: "quoted bare text",
+			arg:  `"quarterly budget report"`,
+			spec: emailSpec,
+			want: map[string]string{"keywords": "quarterly budget report"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseSteeringArgs(tt.arg, tt.spec)
+			if len(got) != len(tt.want) {
+				t.Fatalf("got %d params %v, want %d params %v", len(got), got, len(tt.want), tt.want)
+			}
+			for k, v := range tt.want {
+				if got[k] != v {
+					t.Errorf("param %q = %q, want %q", k, got[k], v)
+				}
+			}
+		})
+	}
+}
+
+func TestSplitQueue(t *testing.T) {
+	tests := []struct {
+		input string
+		want  []string
+	}{
+		{"hello", []string{"hello"}},
+		{"/emails from:bob && /meetings date:tomorrow", []string{"/emails from:bob", "/meetings date:tomorrow"}},
+		{"  /a && /b && /c  ", []string{"/a", "/b", "/c"}},
+		{" && ", nil},
+		{"no ampersand here", []string{"no ampersand here"}},
+		{"a&&b", []string{"a&&b"}}, // no spaces around && → not a separator
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := splitQueue(tt.input)
+			if len(got) != len(tt.want) {
+				t.Fatalf("splitQueue(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("splitQueue(%q)[%d] = %q, want %q", tt.input, i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}
+
+func TestSplitCommand(t *testing.T) {
+	tests := []struct {
+		input   string
+		wantCmd string
+		wantArg string
+	}{
+		{"emails from:bob", "emails", "from:bob"},
+		{"emails: from:bob", "emails", "from:bob"},
+		{"EMAILS: from:bob", "emails", "from:bob"},
+		{"ask what is up", "ask", "what is up"},
+		{"quit", "quit", ""},
+		{"quit:", "quit", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			cmd, arg := splitCommand(tt.input)
+			if cmd != tt.wantCmd || arg != tt.wantArg {
+				t.Errorf("splitCommand(%q) = (%q, %q), want (%q, %q)", tt.input, cmd, arg, tt.wantCmd, tt.wantArg)
+			}
+		})
+	}
+}
+
+func TestTokenize(t *testing.T) {
+	tests := []struct {
+		input string
+		want  []string
+	}{
+		{"hello world", []string{"hello", "world"}},
+		{`from:"andy huntington" subject:budget`, []string{"from:andy huntington", "subject:budget"}},
+		{`"quarterly budget report"`, []string{"quarterly budget report"}},
+		{`plain tokens here`, []string{"plain", "tokens", "here"}},
+		{`mixed "quoted value" plain`, []string{"mixed", "quoted value", "plain"}},
+		{"", nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := tokenize(tt.input)
+			if len(got) != len(tt.want) {
+				t.Fatalf("tokenize(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("tokenize(%q)[%d] = %q, want %q", tt.input, i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}
+
+func TestSteeringEndToEnd(t *testing.T) {
+	// Verify that a steering command produces the right question via buildQuestion.
+	tests := []struct {
+		name string
+		cmd  string
+		arg  string
+		want string
+	}{
+		{
+			name: "emails bare text",
+			cmd:  "emails",
+			arg:  "quarterly report",
+			want: "Find my emails about quarterly report",
+		},
+		{
+			name: "emails keyed",
+			cmd:  "emails",
+			arg:  "from:Sarah subject:budget",
+			want: "Find my emails from Sarah with subject about budget",
+		},
+		{
+			name: "docs with site",
+			cmd:  "docs",
+			arg:  "name:report site:intranet",
+			want: "Find documents named report on site intranet",
+		},
+		{
+			name: "meetings bare date",
+			cmd:  "meetings",
+			arg:  "tomorrow",
+			want: "Find my meetings from tomorrow",
+		},
+		{
+			name: "people bare name",
+			cmd:  "people",
+			arg:  "Alice",
+			want: "Find people named Alice",
+		},
+		{
+			name: "chats with and keywords",
+			cmd:  "chats",
+			arg:  "with:Alice keywords:deployment",
+			want: "Find Teams chat messages with Alice about deployment",
+		},
+		{
+			name: "empty arg gives recent items",
+			cmd:  "emails",
+			arg:  "",
+			want: "Find my emails recent items",
+		},
+		{
+			name: "quoted from value",
+			cmd:  "emails",
+			arg:  `from:"andy huntington"`,
+			want: "Find my emails from andy huntington",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			spec := steeringSpecs[tt.cmd]
+			params := parseSteeringArgs(tt.arg, spec)
+			got := buildQuestion(spec.tool, mustMarshal(params))
+			if got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
 			}
 		})
 	}

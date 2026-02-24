@@ -110,6 +110,13 @@ func newMarkdownRenderer() *glamour.TermRenderer {
 func printHelp() {
 	cmds := []struct{ cmd, desc string }{
 		{"/ask <question>", "Ask Microsoft 365 Copilot a question"},
+		{"/emails [opts]", "Search emails (from: subject: date:)"},
+		{"/docs [opts]", "Search documents (name: site: type:)"},
+		{"/chats [opts]", "Search chats (with: date:)"},
+		{"/channels [opts]", "Search channels (team: channel: date:)"},
+		{"/meetings [opts]", "Search meetings (by: subject: date:)"},
+		{"/people [opts]", "Search people (name: dept: project:)"},
+		{"", ""},
 		{"/accept-eula", "Accept the Work IQ EULA"},
 		{"/tools", "List available MCP tools"},
 		{"/help", "Show this help"},
@@ -117,12 +124,17 @@ func printHelp() {
 	}
 	fmt.Fprintln(os.Stderr, "")
 	for _, c := range cmds {
+		if c.cmd == "" {
+			fmt.Fprintln(os.Stderr, "")
+			continue
+		}
 		fmt.Fprintf(os.Stderr, "  %s  %s\n",
 			cmdStyle.Render(fmt.Sprintf("%-20s", c.cmd)),
 			descStyle.Render(c.desc))
 	}
 	fmt.Fprintln(os.Stderr, "")
 	fmt.Fprintln(os.Stderr, subtleStyle.Render("  Type / for commands, or just type a question."))
+	fmt.Fprintln(os.Stderr, subtleStyle.Render("  Chain commands with &&: /emails from:bob && /meetings date:tomorrow"))
 	fmt.Fprintln(os.Stderr, subtleStyle.Render("  Press Ctrl-C twice to exit."))
 	fmt.Fprintln(os.Stderr, "")
 }
@@ -201,9 +213,19 @@ func runRepl(cmdParts []string) {
 
 	waitResponse := func() (rpcMessage, bool) {
 		stopSpinner := startSpinner()
-		msg, ok := <-responses
-		stopSpinner()
-		return msg, ok
+		for {
+			msg, ok := <-responses
+			if !ok {
+				stopSpinner()
+				return msg, false
+			}
+			// Skip server-initiated notifications (no ID).
+			if msg.ID == nil && msg.Method != "" {
+				continue
+			}
+			stopSpinner()
+			return msg, true
+		}
 	}
 
 	// MCP handshake.
@@ -225,42 +247,43 @@ func runRepl(cmdParts []string) {
 	fmt.Fprintln(os.Stderr, subtleStyle.Render("workiq-proxy interactive mode"))
 	printHelp()
 
-	for {
-		input, ok := readInput()
-		if !ok {
-			break // Ctrl-D
+	askQuestion := func(question string) {
+		send("tools/call", toolCallParams{
+			Name:      "ask_work_iq",
+			Arguments: mustMarshal(map[string]string{"question": question}),
+		})
+		if resp, ok := waitResponse(); ok {
+			printReplResult(resp, mdRenderer)
 		}
+	}
+
+	quit := false
+	dispatch := func(input string) {
 		if input == "" {
-			continue
+			return
 		}
 
 		// Bare text (no / prefix) → treat as a question.
 		if !strings.HasPrefix(input, "/") {
-			send("tools/call", toolCallParams{
-				Name:      "ask_work_iq",
-				Arguments: mustMarshal(map[string]string{"question": input}),
-			})
-			if resp, ok := waitResponse(); ok {
-				printReplResult(resp, mdRenderer)
-			}
-			continue
+			askQuestion(input)
+			return
 		}
-		input = input[1:]
 
-		cmd, arg := splitCommand(input)
+		cmd, arg := splitCommand(input[1:])
+
+		// Steering commands route through buildQuestion.
+		if spec, ok := steeringSpecs[cmd]; ok {
+			params := parseSteeringArgs(arg, spec)
+			askQuestion(buildQuestion(spec.tool, mustMarshal(params)))
+			return
+		}
 
 		switch cmd {
 		case "ask":
 			if arg == "" {
 				fmt.Fprintln(os.Stderr, errorStyle.Render("Usage: /ask <question>"))
 			} else {
-				send("tools/call", toolCallParams{
-					Name:      "ask_work_iq",
-					Arguments: mustMarshal(map[string]string{"question": arg}),
-				})
-				if resp, ok := waitResponse(); ok {
-					printReplResult(resp, mdRenderer)
-				}
+				askQuestion(arg)
 			}
 
 		case "accept-eula":
@@ -275,6 +298,9 @@ func runRepl(cmdParts []string) {
 		case "tools":
 			send("tools/list", map[string]interface{}{})
 			if resp, ok := waitResponse(); ok {
+				if resp.Result != nil {
+					resp.Result = patchToolsList(resp.Result)
+				}
 				printToolsList(resp)
 			}
 
@@ -282,13 +308,23 @@ func runRepl(cmdParts []string) {
 			printHelp()
 
 		case "quit", "exit", "q":
-			childIn.Close()
-			child.Wait()
-			scanWg.Wait()
-			return
+			quit = true
 
 		default:
 			fmt.Fprintln(os.Stderr, errorStyle.Render("Unknown command: /"+cmd+". Type /help for available commands."))
+		}
+	}
+
+	for !quit {
+		input, ok := readInput()
+		if !ok {
+			break // Ctrl-D
+		}
+		for _, seg := range splitQueue(input) {
+			dispatch(seg)
+			if quit {
+				break
+			}
 		}
 	}
 
@@ -299,7 +335,7 @@ func runRepl(cmdParts []string) {
 
 func splitCommand(input string) (string, string) {
 	parts := strings.SplitN(input, " ", 2)
-	cmd := strings.ToLower(parts[0])
+	cmd := strings.ToLower(strings.TrimRight(parts[0], ":"))
 	arg := ""
 	if len(parts) > 1 {
 		arg = strings.TrimSpace(parts[1])
@@ -307,14 +343,135 @@ func splitCommand(input string) (string, string) {
 	return cmd, arg
 }
 
+// splitQueue splits input on " && " so users can chain commands.
+func splitQueue(input string) []string {
+	parts := strings.Split(input, " && ")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// steeringSpec maps a REPL slash command to a synthetic tool.
+type steeringSpec struct {
+	tool       string
+	defaultKey string
+	aliases    map[string]string // REPL key → tool param name
+}
+
+var steeringSpecs = map[string]steeringSpec{
+	"emails": {
+		tool: "search_emails", defaultKey: "keywords",
+		aliases: map[string]string{"from": "from", "subject": "subject", "keywords": "keywords", "date": "date_range"},
+	},
+	"docs": {
+		tool: "search_documents", defaultKey: "keywords",
+		aliases: map[string]string{"name": "filename", "keywords": "keywords", "site": "site", "type": "file_type"},
+	},
+	"chats": {
+		tool: "search_chats", defaultKey: "keywords",
+		aliases: map[string]string{"with": "person", "keywords": "keywords", "date": "date_range"},
+	},
+	"channels": {
+		tool: "search_channels", defaultKey: "keywords",
+		aliases: map[string]string{"team": "team", "channel": "channel", "keywords": "keywords", "date": "date_range"},
+	},
+	"meetings": {
+		tool: "search_meetings", defaultKey: "date_range",
+		aliases: map[string]string{"by": "organizer", "subject": "subject", "date": "date_range"},
+	},
+	"people": {
+		tool: "search_people", defaultKey: "name",
+		aliases: map[string]string{"name": "name", "dept": "department", "project": "project"},
+	},
+}
+
+// parseSteeringArgs splits an argument string into tool parameters.
+// Tokens matching a known key: prefix start a new parameter; all other
+// text accumulates into the current parameter (or the default key).
+// Quoted strings ("...") are kept as single tokens with quotes stripped.
+func parseSteeringArgs(arg string, spec steeringSpec) map[string]string {
+	params := make(map[string]string)
+	currentKey := ""
+	var currentVal []string
+
+	flush := func() {
+		if len(currentVal) == 0 {
+			return
+		}
+		val := strings.Join(currentVal, " ")
+		if currentKey == "" {
+			params[spec.defaultKey] = val
+		} else if mapped, ok := spec.aliases[currentKey]; ok {
+			params[mapped] = val
+		}
+		currentVal = nil
+		currentKey = ""
+	}
+
+	for _, tok := range tokenize(arg) {
+		if idx := strings.Index(tok, ":"); idx > 0 {
+			key := strings.ToLower(tok[:idx])
+			if _, ok := spec.aliases[key]; ok {
+				flush()
+				currentKey = key
+				if rest := tok[idx+1:]; rest != "" {
+					currentVal = append(currentVal, rest)
+				}
+				continue
+			}
+		}
+		currentVal = append(currentVal, tok)
+	}
+	flush()
+
+	return params
+}
+
+// tokenize splits s on whitespace but keeps quoted strings ("...") as
+// single tokens with the surrounding quotes removed.
+func tokenize(s string) []string {
+	var tokens []string
+	var current strings.Builder
+	inQuote := false
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c == '"':
+			inQuote = !inQuote
+		case c == ' ' && !inQuote:
+			if current.Len() > 0 {
+				tokens = append(tokens, current.String())
+				current.Reset()
+			}
+		default:
+			current.WriteByte(c)
+		}
+	}
+	if current.Len() > 0 {
+		tokens = append(tokens, current.String())
+	}
+	return tokens
+}
+
 func printReplResult(msg rpcMessage, r *glamour.TermRenderer) {
 	if msg.Error != nil {
-		fmt.Fprintln(os.Stderr, errorStyle.Render("Error: "+msg.Error.Message))
+		detail := msg.Error.Message
+		if msg.Error.Code != 0 {
+			detail = fmt.Sprintf("%s (code %d)", detail, msg.Error.Code)
+		}
+		fmt.Fprintln(os.Stderr, errorStyle.Render("Error: "+detail))
 		return
 	}
 	if msg.Result == nil {
 		return
 	}
+	// Apply the same error enrichment the proxy adds.
+	msg.Result = enrichToolCallResult(msg.Result)
 	var result struct {
 		Content []contentItem `json:"content"`
 		IsError bool          `json:"isError"`
