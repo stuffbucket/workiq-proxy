@@ -45,3 +45,6 @@ linters:
       - path: log\.go$
         linters:
           - errcheck
+      - path: slash\.go$
+        linters:
+          - gocritic

@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -331,5 +333,191 @@ func TestSyntheticToolNames(t *testing.T) {
 	}
 	if syntheticToolNames["ask_work_iq"] {
 		t.Error("ask_work_iq should not be synthetic")
+	}
+}
+
+func TestRenderWithURLs(t *testing.T) {
+	r := newMarkdownRenderer()
+	if r == nil {
+		t.Fatal("failed to create markdown renderer")
+	}
+
+	osc := func(label, href string) string {
+		return "\033]8;;" + href + "\033\\" + label + "\033]8;;\033\\"
+	}
+
+	// stripOSC8 removes OSC 8 escape sequences, leaving only visible text.
+	osc8Re := regexp.MustCompile(`\033\]8;;[^\033]*\033\\`)
+	stripOSC8 := func(s string) string {
+		return osc8Re.ReplaceAllString(s, "")
+	}
+
+	longTeamsURL := "https://teams.microsoft.com/l/meeting/details?eventId=AAMkADkwNzEwMmNkLWFmNGQtNDFlZS04YjJhLTZhZDI5NmU1NmIxZAFRAAgI3nQA0bBAAEYAAAAA2NHrSsPBXU6PC_oSYMmssgcAr7CiMCsTiUu65ueNDQ53KwAAAHljZAAAcbrkZ7o-DEm7jz5iZCjevgAN83CBRAAAEA%3d%3d"
+
+	tests := []struct {
+		name  string
+		input string
+		check func(string) error
+	}{
+		{
+			name:  "broken Teams URL reassembled and rendered cleanly",
+			input: "Note: This meeting conflicts with another. [1](https://teams.microsoft.\ncom/l/meeting/details?eventId=AAAA)\n\nDetails",
+			check: func(got string) error {
+				visible := stripOSC8(got)
+				if strings.Contains(visible, "ttps://") {
+					return fmt.Errorf("raw URL fragment visible in display text: %q", visible)
+				}
+				if strings.Contains(visible, "]8;;") {
+					return fmt.Errorf("raw OSC 8 escape visible: %q", visible)
+				}
+				want := osc("Open in Teams", "https://teams.microsoft.com/l/meeting/details?eventId=AAAA")
+				if !strings.Contains(got, want) {
+					return fmt.Errorf("missing OSC 8 hyperlink in output: %q", got)
+				}
+				return nil
+			},
+		},
+		{
+			name:  "long Teams URL from markdown link not broken across lines",
+			input: "Meeting result [1](" + longTeamsURL + ") here",
+			check: func(got string) error {
+				visible := stripOSC8(got)
+				// The raw URL must NOT appear in visible display text.
+				if strings.Contains(visible, "eventId=") {
+					return fmt.Errorf("raw URL leaked into visible text: %q", visible)
+				}
+				want := osc("Open in Teams", longTeamsURL)
+				if !strings.Contains(got, want) {
+					return fmt.Errorf("missing OSC 8 hyperlink: %q", got)
+				}
+				return nil
+			},
+		},
+		{
+			name:  "bare URL on its own line",
+			input: "See link below\nhttps://github.com/foo/bar\n\nDone",
+			check: func(got string) error {
+				if strings.Contains(got, "https://github.com") && !strings.Contains(got, "\033]8;;") {
+					return fmt.Errorf("bare URL not converted to OSC 8: %q", got)
+				}
+				want := osc("Open on GitHub", "https://github.com/foo/bar")
+				if !strings.Contains(got, want) {
+					return fmt.Errorf("missing OSC 8 hyperlink: %q", got)
+				}
+				return nil
+			},
+		},
+		{
+			name:  "markdown link with descriptive text preserved",
+			input: "Click [see the docs](https://example.com/help) for more info",
+			check: func(got string) error {
+				want := osc("see the docs", "https://example.com/help")
+				if !strings.Contains(got, want) {
+					return fmt.Errorf("missing OSC 8 hyperlink: %q", got)
+				}
+				return nil
+			},
+		},
+		{
+			name: "multi-line broken bare URL reassembled",
+			input: "Check https://teams.microsoft.\ncom/l/meeting/details?eventId=AAMkADkw\n\nDetails",
+			check: func(got string) error {
+				if strings.Contains(got, "\ncom/l/") {
+					return fmt.Errorf("URL still broken across lines: %q", got)
+				}
+				want := osc("Open in Teams", "https://teams.microsoft.com/l/meeting/details?eventId=AAMkADkw")
+				if !strings.Contains(got, want) {
+					return fmt.Errorf("missing OSC 8 hyperlink: %q", got)
+				}
+				return nil
+			},
+		},
+		{
+			name:  "no mangled escape sequences in output",
+			input: "Result [1](" + longTeamsURL + ")\n\n* Meeting: Test\n* Time: 9:00 AM",
+			check: func(got string) error {
+				// Check for common mangling patterns.
+				if strings.Contains(got, "0m") && strings.Contains(got, "ttps://") {
+					return fmt.Errorf("ANSI escape mangling detected: %q", got)
+				}
+				if strings.Contains(got, "]8;;") && !strings.Contains(got, "\033]8;;") {
+					return fmt.Errorf("broken OSC 8 sequence (missing ESC): %q", got)
+				}
+				return nil
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := renderText(tt.input, r)
+			if err := tt.check(got); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+}
+
+func TestPreprocessURLs(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		check func(string, []linkRef) error
+	}{
+		{
+			name:  "replaces markdown link with placeholder",
+			input: "Click [here](https://example.com/page) now",
+			check: func(got string, refs []linkRef) error {
+				if strings.Contains(got, "https://") {
+					return fmt.Errorf("URL still in text: %q", got)
+				}
+				if len(refs) != 1 {
+					return fmt.Errorf("expected 1 ref, got %d", len(refs))
+				}
+				if refs[0].href != "https://example.com/page" {
+					return fmt.Errorf("wrong href: %s", refs[0].href)
+				}
+				if refs[0].label != "here" {
+					return fmt.Errorf("wrong label: %s", refs[0].label)
+				}
+				return nil
+			},
+		},
+		{
+			name:  "reassembles broken URL then replaces",
+			input: "Go to https://teams.microsoft.\ncom/l/meeting?id=X\n\nDone",
+			check: func(got string, refs []linkRef) error {
+				if strings.Contains(got, "\ncom/l/") {
+					return fmt.Errorf("URL still broken: %q", got)
+				}
+				if len(refs) != 1 {
+					return fmt.Errorf("expected 1 ref, got %d", len(refs))
+				}
+				if refs[0].href != "https://teams.microsoft.com/l/meeting?id=X" {
+					return fmt.Errorf("wrong href: %s", refs[0].href)
+				}
+				return nil
+			},
+		},
+		{
+			name:  "numeric link text gets friendly label",
+			input: "result [1](https://teams.microsoft.com/foo) here",
+			check: func(got string, refs []linkRef) error {
+				if len(refs) != 1 {
+					return fmt.Errorf("expected 1 ref, got %d", len(refs))
+				}
+				if refs[0].label != "Open in Teams" {
+					return fmt.Errorf("expected friendly label, got: %s", refs[0].label)
+				}
+				return nil
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, refs := preprocessURLs(tt.input)
+			if err := tt.check(got, refs); err != nil {
+				t.Error(err)
+			}
+		})
 	}
 }
