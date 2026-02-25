@@ -37,7 +37,7 @@ Download a prebuilt binary from [GitHub Releases](https://github.com/stuffbucket
 
 ## Prerequisites
 
-workiq-proxy wraps [Microsoft Work IQ](https://github.com/microsoft/work-iq-mcp). You need:
+workiq-proxy extends [Microsoft Work IQ](https://github.com/microsoft/work-iq-mcp). You need:
 
 - **Node.js 18+** — required by the `@microsoft/workiq` npm package that the proxy spawns
 - **Microsoft 365 Copilot license** — Work IQ queries the M365 Copilot Chat API; your tenant must have it enabled

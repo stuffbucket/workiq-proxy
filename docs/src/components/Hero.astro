@@ -10,11 +10,10 @@ const isIndex = slug === '' || slug === 'index';
 
 {isIndex ? (
   <div class="hero-landing">
-    <h1>Your M365 data,<br />inside your AI assistant.</h1>
+    <h1>Search your work<br />from your AI assistant.</h1>
     <p class="hero-tagline">
-      workiq-proxy is an MCP compatibility proxy for Microsoft Work IQ.
-      Search emails, documents, chats, meetings, and people — from Claude Code,
-      VS Code, Codex, or any MCP client.
+      Connect Microsoft 365 to Claude, VS Code, Codex, and more.
+      Emails, docs, chats, meetings, people — all searchable in one place.
     </p>
 
     <div class="hero-actions">
@@ -32,28 +31,28 @@ const isIndex = slug === '' || slug === 'index';
 
     <div class="features">
       <div class="feature">
-        <h3>Fix MCP compatibility</h3>
-        <p>Intercepts unsupported methods and patches capabilities so Claude Code, VS Code, and other clients connect without errors.</p>
+        <h3>Works everywhere</h3>
+        <p>Claude Code, VS Code, Codex, and any MCP-compatible AI assistant. One proxy, every client.</p>
       </div>
       <div class="feature">
         <h3>7 search tools</h3>
-        <p>Structured tools for emails, documents, chats, channels, meetings, people, and external items — not just one "ask anything" endpoint.</p>
+        <p>Emails, documents, chats, channels, meetings, people, and external items — each with its own dedicated tool.</p>
       </div>
       <div class="feature">
-        <h3>OpenAI-compatible API</h3>
-        <p>Serve mode exposes an OpenAI Chat Completions endpoint, so any tool that speaks OpenAI can query your M365 data.</p>
+        <h3>Run it like a local LLM</h3>
+        <p>Serve mode runs a local server that any OpenAI-compatible app can talk to — just point it at localhost.</p>
       </div>
       <div class="feature">
-        <h3>CLI passthrough</h3>
-        <p>One binary for everything — EULA acceptance, auth, queries, and MCP proxy. No separate installs.</p>
+        <h3>One install, everything included</h3>
+        <p>Auth, setup, queries, and the MCP server all in a single binary. Nothing else to install.</p>
       </div>
       <div class="feature">
-        <h3>Self-disabling</h3>
-        <p>If a future Work IQ version adds missing capabilities, the proxy detects it and stops intercepting. Zero maintenance.</p>
+        <h3>Future-proof</h3>
+        <p>Automatically steps aside when Work IQ gains new capabilities. Zero maintenance.</p>
       </div>
       <div class="feature">
-        <h3>Traffic logging</h3>
-        <p>Every JSON-RPC message logged to ~/.work-iq-cli/mcp-traffic.log for debugging. Disable with --no-log.</p>
+        <h3>Full visibility</h3>
+        <p>Every request and response logged for easy debugging. Turn it off with one flag.</p>
       </div>
     </div>
 

@@ -24,9 +24,13 @@ const args = process.argv.slice(2);
 if (config.resolve) {
   try {
     const resolved = require.resolve(config.resolve.module);
+    // Quote each path component so Windows paths with spaces
+    // (e.g. C:\Program Files\nodejs\node.exe) survive the Go
+    // side's whitespace splitting of --workiq-cmd.
+    const q = (p) => (p.includes(" ") ? `"${p}"` : p);
     const cmd = config.resolve.prefix
-      ? `${process.execPath} ${resolved}`
-      : resolved;
+      ? `${q(process.execPath)} ${q(resolved)}`
+      : q(resolved);
     args.unshift(config.resolve.flag, cmd);
   } catch {
     // Fall through — Go binary's default will be used.

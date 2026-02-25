@@ -13,7 +13,7 @@ export default defineConfig({
     starlight({
       title: 'workiq-proxy',
       description:
-        'MCP compatibility proxy for Microsoft Work IQ. Search your M365 emails, documents, chats, and meetings from any AI assistant.',
+        'Microsoft 365 Copilot emails, docs, chats, and meetings from any AI assistant.',
       favicon: '/favicon.svg',
       lastUpdated: true,
       editLink: {

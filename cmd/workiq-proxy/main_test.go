@@ -754,3 +754,55 @@ func TestSteeringEndToEnd(t *testing.T) {
 		})
 	}
 }
+
+func TestSplitFields(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want []string
+	}{
+		{
+			name: "simple",
+			in:   "npx -y @microsoft/workiq",
+			want: []string{"npx", "-y", "@microsoft/workiq"},
+		},
+		{
+			name: "quoted path with spaces",
+			in:   `"C:\Program Files\nodejs\node.exe" "C:\Users\me\node_modules\workiq.js"`,
+			want: []string{`C:\Program Files\nodejs\node.exe`, `C:\Users\me\node_modules\workiq.js`},
+		},
+		{
+			name: "mixed quoted and unquoted",
+			in:   `"C:\Program Files\nodejs\node.exe" --flag value`,
+			want: []string{`C:\Program Files\nodejs\node.exe`, "--flag", "value"},
+		},
+		{
+			name: "empty",
+			in:   "",
+			want: nil,
+		},
+		{
+			name: "only spaces",
+			in:   "   ",
+			want: nil,
+		},
+		{
+			name: "no spaces no quotes",
+			in:   "workiq",
+			want: []string{"workiq"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := splitFields(tt.in)
+			if len(got) != len(tt.want) {
+				t.Fatalf("len = %d, want %d: %q", len(got), len(tt.want), got)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("[%d] = %q, want %q", i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}
