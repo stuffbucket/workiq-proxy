@@ -10,80 +10,111 @@ const isIndex = slug === '' || slug === 'index';
 
 {isIndex ? (
   <div class="hero-landing">
-    <h1>Search your work<br />from your AI assistant.</h1>
-    <p class="hero-tagline">
-      Connect Microsoft 365 to Claude, VS Code, Codex, and more.
-      Emails, docs, chats, meetings, people — all searchable in one place.
-    </p>
+    <div class="hero-gradient" aria-hidden="true">
+      <span class="hero-gradient-blob"></span>
+    </div>
+
+    <div class="hero-content">
+      <!-- 
+      <p class="hero-badge">WorkIQ</p> 
+      -->
+      <h1>Search your work<br />from any AI assistant.</h1>
+      <p class="hero-tagline">
+        Emails, docs, chats, meetings, people: one install, every client.
+      </p>
+
+      <div class="install-command">
+        <span class="install-prompt">$</span>
+        <span class="install-text">npm install -g @stuffbucket/workiq-proxy</span>
+        <button class="install-copy" onclick="navigator.clipboard.writeText('npm install -g @stuffbucket/workiq-proxy')" title="Copy to clipboard">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        </button>
+      </div>
+    </div>
 
     <div class="hero-actions">
       <a href="getting-started/install/" class="primary">Get started</a>
-      <a href="https://github.com/stuffbucket/workiq" class="secondary">GitHub</a>
+      <a href="https://github.com/stuffbucket/workiq-proxy" class="secondary">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub
+      </a>
     </div>
 
-    <div class="install-command">
-      <span style="color:#6b7280;">$</span> npm install -g @stuffbucket/workiq-proxy
-    </div>
-
-    <div class="arch-diagram">
-      MCP Client &nbsp;←stdio→&nbsp; <strong>workiq-proxy</strong> &nbsp;←stdio→&nbsp; workiq mcp
-    </div>
-
-    <div class="features">
+    <section class="features">
       <div class="feature">
+        <span class="feature-icon" aria-hidden="true">🔌</span>
         <h3>Works everywhere</h3>
-        <p>Claude Code, VS Code, Codex, and any MCP-compatible AI assistant. One proxy, every client.</p>
+        <p>Claude Code, VS Code, Codex, and any MCP-compatible client. One proxy, every assistant.</p>
       </div>
       <div class="feature">
+        <span class="feature-icon" aria-hidden="true">🔍</span>
         <h3>7 search tools</h3>
-        <p>Emails, documents, chats, channels, meetings, people, and external items — each with its own dedicated tool.</p>
+        <p>Emails, documents, chats, channels, meetings, people, and external items — each with its own tool.</p>
       </div>
       <div class="feature">
-        <h3>Run it like a local LLM</h3>
-        <p>Serve mode runs a local server that any OpenAI-compatible app can talk to — just point it at localhost.</p>
+        <span class="feature-icon" aria-hidden="true">🖥️</span>
+        <h3>Serve mode</h3>
+        <p>Run a local OpenAI-compatible server that any app can talk to. Just point it at localhost.</p>
       </div>
       <div class="feature">
-        <h3>One install, everything included</h3>
-        <p>Auth, setup, queries, and the MCP server all in a single binary. Nothing else to install.</p>
+        <span class="feature-icon" aria-hidden="true">📦</span>
+        <h3>One install</h3>
+        <p>Auth, setup, queries, and the MCP server all in a single binary. Nothing else required.</p>
       </div>
       <div class="feature">
+        <span class="feature-icon" aria-hidden="true">🔄</span>
         <h3>Future-proof</h3>
-        <p>Automatically steps aside when Work IQ gains new capabilities. Zero maintenance.</p>
+        <p>Steps aside when Work IQ gains new capabilities. Zero maintenance on your end.</p>
       </div>
       <div class="feature">
+        <span class="feature-icon" aria-hidden="true">📋</span>
         <h3>Full visibility</h3>
         <p>Every request and response logged for easy debugging. Turn it off with one flag.</p>
       </div>
-    </div>
+    </section>
 
-    <div class="quick-steps">
+    <section class="quick-steps">
       <h2>Up and running in 3 steps</h2>
 
-      <div class="step">
-        <div class="step-num">1</div>
-        <div class="step-body">
-          <h3>Install</h3>
-          <p><code>npm install -g @stuffbucket/workiq-proxy</code></p>
+      <div class="steps-grid">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h3>Install</h3>
+            <p><code>npm install -g @stuffbucket/workiq-proxy</code></p>
+          </div>
         </div>
-      </div>
 
-      <div class="step">
-        <div class="step-num">2</div>
-        <div class="step-body">
-          <h3>Authenticate</h3>
-          <p><code>workiq-proxy ask</code> — accepts EULA and signs in via browser.</p>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h3>Authenticate</h3>
+            <p><code>workiq-proxy ask</code> — accepts EULA and signs in via browser.</p>
+          </div>
         </div>
-      </div>
 
-      <div class="step">
-        <div class="step-num">3</div>
-        <div class="step-body">
-          <h3>Connect</h3>
-          <p>Add the MCP server to your AI assistant. Done.</p>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h3>Connect</h3>
+            <p>Add the MCP server to your AI assistant's config. Done.</p>
+          </div>
         </div>
       </div>
-    </div>
+    </section>
   </div>
 ) : (
   <Default {...Astro.props}><slot /></Default>
 )}
+
+<script>
+  // Card spotlight: track mouse position for radial glow
+  document.querySelectorAll('.feature').forEach((card) => {
+    card.addEventListener('mousemove', (e) => {
+      const el = card as HTMLElement;
+      const rect = el.getBoundingClientRect();
+      el.style.setProperty('--spot-x', `${e.clientX - rect.left}px`);
+      el.style.setProperty('--spot-y', `${e.clientY - rect.top}px`);
+    });
+  });
+</script>
