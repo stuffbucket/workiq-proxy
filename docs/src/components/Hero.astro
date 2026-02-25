@@ -1,0 +1,90 @@
+---
+// Custom Hero — renders the landing page hero on the index page,
+// falls back to Starlight's default Hero on all other pages.
+import type { Props } from '@astrojs/starlight/props';
+import Default from '@astrojs/starlight/components/Hero.astro';
+
+const slug = Astro.locals.starlightRoute?.slug ?? Astro.props.slug ?? '';
+const isIndex = slug === '' || slug === 'index';
+---
+
+{isIndex ? (
+  <div class="hero-landing">
+    <h1>Your M365 data,<br />inside your AI assistant.</h1>
+    <p class="hero-tagline">
+      workiq-proxy is an MCP compatibility proxy for Microsoft Work IQ.
+      Search emails, documents, chats, meetings, and people — from Claude Code,
+      VS Code, Codex, or any MCP client.
+    </p>
+
+    <div class="hero-actions">
+      <a href="getting-started/install/" class="primary">Get started</a>
+      <a href="https://github.com/stuffbucket/workiq" class="secondary">GitHub</a>
+    </div>
+
+    <div class="install-command">
+      <span style="color:#6b7280;">$</span> npm install -g @stuffbucket/workiq-proxy
+    </div>
+
+    <div class="arch-diagram">
+      MCP Client &nbsp;←stdio→&nbsp; <strong>workiq-proxy</strong> &nbsp;←stdio→&nbsp; workiq mcp
+    </div>
+
+    <div class="features">
+      <div class="feature">
+        <h3>Fix MCP compatibility</h3>
+        <p>Intercepts unsupported methods and patches capabilities so Claude Code, VS Code, and other clients connect without errors.</p>
+      </div>
+      <div class="feature">
+        <h3>7 search tools</h3>
+        <p>Structured tools for emails, documents, chats, channels, meetings, people, and external items — not just one "ask anything" endpoint.</p>
+      </div>
+      <div class="feature">
+        <h3>OpenAI-compatible API</h3>
+        <p>Serve mode exposes an OpenAI Chat Completions endpoint, so any tool that speaks OpenAI can query your M365 data.</p>
+      </div>
+      <div class="feature">
+        <h3>CLI passthrough</h3>
+        <p>One binary for everything — EULA acceptance, auth, queries, and MCP proxy. No separate installs.</p>
+      </div>
+      <div class="feature">
+        <h3>Self-disabling</h3>
+        <p>If a future Work IQ version adds missing capabilities, the proxy detects it and stops intercepting. Zero maintenance.</p>
+      </div>
+      <div class="feature">
+        <h3>Traffic logging</h3>
+        <p>Every JSON-RPC message logged to ~/.work-iq-cli/mcp-traffic.log for debugging. Disable with --no-log.</p>
+      </div>
+    </div>
+
+    <div class="quick-steps">
+      <h2>Up and running in 3 steps</h2>
+
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h3>Install</h3>
+          <p><code>npm install -g @stuffbucket/workiq-proxy</code></p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h3>Authenticate</h3>
+          <p><code>workiq-proxy ask</code> — accepts EULA and signs in via browser.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h3>Connect</h3>
+          <p>Add the MCP server to your AI assistant. Done.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+) : (
+  <Default {...Astro.props}><slot /></Default>
+)}

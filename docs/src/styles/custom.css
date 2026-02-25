@@ -1,0 +1,239 @@
+/* workiq-proxy — Swiss-inspired minimal theme */
+
+/* ── Typography ─────────────────────────────────────────────── */
+
+:root {
+  --sl-font: 'system-ui', -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, sans-serif;
+  --sl-font-mono: 'SF Mono', 'Fira Code', 'JetBrains Mono', Menlo, Consolas,
+    monospace;
+
+  /* Tighten Starlight's color palette — cool neutrals + single accent */
+  --sl-color-accent-low: #e8f0fe;
+  --sl-color-accent: #2563eb;
+  --sl-color-accent-high: #1d4ed8;
+  --sl-color-white: #fafafa;
+  --sl-color-gray-1: #f1f1f1;
+  --sl-color-gray-2: #e4e4e4;
+  --sl-color-gray-3: #a3a3a3;
+  --sl-color-gray-4: #525252;
+  --sl-color-gray-5: #262626;
+  --sl-color-gray-6: #171717;
+  --sl-color-black: #0a0a0a;
+}
+
+:root[data-theme='dark'] {
+  --sl-color-accent-low: #172554;
+  --sl-color-accent: #60a5fa;
+  --sl-color-accent-high: #93c5fd;
+  --sl-color-white: #0a0a0a;
+  --sl-color-gray-1: #171717;
+  --sl-color-gray-2: #262626;
+  --sl-color-gray-3: #525252;
+  --sl-color-gray-4: #a3a3a3;
+  --sl-color-gray-5: #e4e4e4;
+  --sl-color-gray-6: #f1f1f1;
+  --sl-color-black: #fafafa;
+}
+
+/* ── Landing hero ───────────────────────────────────────────── */
+
+.hero-landing {
+  text-align: center;
+  padding: 6rem 1.5rem 4rem;
+  max-width: 48rem;
+  margin: 0 auto;
+}
+
+.hero-landing h1 {
+  font-size: clamp(2.4rem, 5vw, 3.6rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  margin: 0 0 1rem;
+}
+
+.hero-landing .hero-tagline {
+  font-size: clamp(1.1rem, 2.5vw, 1.35rem);
+  color: var(--sl-color-gray-3);
+  line-height: 1.5;
+  margin: 0 0 2.5rem;
+  max-width: 36rem;
+  margin-inline: auto;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 4rem;
+}
+
+.hero-actions a {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.7rem 1.6rem;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+}
+
+.hero-actions .primary {
+  background: var(--sl-color-accent);
+  color: #fff;
+}
+
+.hero-actions .primary:hover {
+  background: var(--sl-color-accent-high);
+}
+
+.hero-actions .secondary {
+  background: var(--sl-color-gray-1);
+  color: var(--sl-color-gray-5);
+  border: 1px solid var(--sl-color-gray-2);
+}
+
+.hero-actions .secondary:hover {
+  background: var(--sl-color-gray-2);
+}
+
+/* ── Install snippet ────────────────────────────────────────── */
+
+.install-command {
+  background: var(--sl-color-gray-6);
+  color: var(--sl-color-gray-1);
+  border-radius: 8px;
+  padding: 1rem 1.5rem;
+  font-family: var(--sl-font-mono);
+  font-size: 0.95rem;
+  max-width: 32rem;
+  margin: 0 auto 4rem;
+  text-align: left;
+  overflow-x: auto;
+}
+
+:root[data-theme='dark'] .install-command {
+  background: var(--sl-color-gray-2);
+  color: var(--sl-color-gray-6);
+}
+
+/* ── Feature grid ───────────────────────────────────────────── */
+
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 2rem;
+  max-width: 56rem;
+  margin: 0 auto 4rem;
+  padding: 0 1.5rem;
+}
+
+.feature {
+  text-align: left;
+}
+
+.feature h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0 0 0.4rem;
+}
+
+.feature p {
+  font-size: 0.9rem;
+  color: var(--sl-color-gray-3);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ── Diagram ────────────────────────────────────────────────── */
+
+.arch-diagram {
+  font-family: var(--sl-font-mono);
+  font-size: 0.85rem;
+  background: var(--sl-color-gray-1);
+  padding: 1.5rem 2rem;
+  border-radius: 8px;
+  max-width: 36rem;
+  margin: 0 auto 4rem;
+  text-align: center;
+  line-height: 1.8;
+  color: var(--sl-color-gray-5);
+}
+
+:root[data-theme='dark'] .arch-diagram {
+  background: var(--sl-color-gray-2);
+}
+
+/* ── Quick-start steps ──────────────────────────────────────── */
+
+.quick-steps {
+  max-width: 36rem;
+  margin: 0 auto 4rem;
+  padding: 0 1.5rem;
+  text-align: left;
+}
+
+.quick-steps h2 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin: 0 0 1.5rem;
+  text-align: center;
+}
+
+.step {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.step-num {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  background: var(--sl-color-accent);
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.step-body h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 0.25rem;
+}
+
+.step-body p {
+  font-size: 0.9rem;
+  color: var(--sl-color-gray-3);
+  margin: 0;
+}
+
+.step-body code {
+  font-size: 0.82rem;
+  background: var(--sl-color-gray-1);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+}
+
+:root[data-theme='dark'] .step-body code {
+  background: var(--sl-color-gray-2);
+}
+
+/* ── Global polish ──────────────────────────────────────────── */
+
+/* Tighter content column */
+.sl-container {
+  max-width: 52rem;
+}
+
+/* Cleaner code blocks */
+.expressive-code pre {
+  border-radius: 8px !important;
+}

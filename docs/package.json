@@ -1,0 +1,28 @@
+{
+  "name": "workiq-proxy-docs",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "description": "workiq-proxy documentation and landing page",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "type-check": "astro check && tsc --noEmit",
+    "ci": "npm run type-check && npm run build"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "0.37.3",
+    "astro": "5.16.11",
+    "sharp": "0.34.5"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.6",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
