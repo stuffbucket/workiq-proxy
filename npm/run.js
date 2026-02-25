@@ -19,6 +19,17 @@ if (!binary) {
 }
 
 const binPath = path.join(__dirname, config.binDir, binary);
+
+if (!require("fs").existsSync(binPath)) {
+  console.error(
+    `${pkg.name}: native binary not found at ${binPath}\n` +
+    `This usually means the postinstall download failed.\n` +
+    `Re-install with: npm install -g ${pkg.name}\n` +
+    `Or download manually from: ${config.downloadURL.replace("{{version}}", pkg.version).replace("{{binary}}", binary)}`
+  );
+  process.exit(1);
+}
+
 const args = process.argv.slice(2);
 
 if (config.resolve) {
@@ -46,7 +57,14 @@ for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
 
 child.on("exit", (code, signal) => {
   if (signal) {
-    process.kill(process.pid, signal);
+    // On Unix, re-raise with the same signal so the parent sees
+    // the correct wait status. On Windows, signals are limited —
+    // just exit non-zero.
+    try {
+      process.kill(process.pid, signal);
+    } catch {
+      process.exit(1);
+    }
   } else {
     process.exit(code ?? 1);
   }

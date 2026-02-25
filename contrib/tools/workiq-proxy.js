@@ -123,6 +123,7 @@ function createLineBuffer(onLine) {
 
 const child = spawn("npx", ["-y", "@microsoft/workiq", "mcp"], {
   stdio: ["pipe", "pipe", "pipe"],
+  shell: process.platform === "win32",
   env: { ...process.env },
 });
 

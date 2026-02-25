@@ -12,11 +12,11 @@ PLATFORMS = \
 	windows/amd64/workiq-proxy-win-x64.exe \
 	windows/arm64/workiq-proxy-win-arm64.exe
 
-.PHONY: build test vet clean all setup lint lint-go lint-js release
+.PHONY: build test vet clean all setup lint lint-go lint-js audit audit-go audit-js release
 
 # ── Development setup ────────────────────────────────────────────
 
-setup: setup-go setup-js
+setup: setup-go setup-js setup-hooks
 
 setup-go:
 	@echo "==> Installing golangci-lint..."
@@ -28,6 +28,14 @@ setup-js:
 	@echo "==> Installing ESLint and JS dev dependencies..."
 	npm install --no-audit --no-fund
 	@echo "==> JS toolchain ready"
+
+setup-hooks:
+	@echo "==> Installing git pre-commit hook..."
+	@mkdir -p .githooks
+	@printf '#!/bin/sh\nmake pre-commit\n' > .githooks/pre-commit
+	@chmod +x .githooks/pre-commit
+	@git config core.hooksPath .githooks
+	@echo "==> Pre-commit hook installed"
 
 # ── Linting ──────────────────────────────────────────────────────
 
@@ -49,6 +57,24 @@ test:
 
 vet:
 	go vet $(MODULE)
+
+# ── Vulnerability / Audit ────────────────────────────────────────
+
+audit: audit-go audit-js
+
+audit-go:
+	@echo "==> Scanning Go dependencies for known vulnerabilities..."
+	go run golang.org/x/vuln/cmd/govulncheck@latest $(MODULE)/
+
+audit-js:
+	@echo "==> Auditing npm dependencies..."
+	cd npm && npm audit --omit=dev
+	@echo "==> npm audit clean"
+
+# ── Pre-commit ───────────────────────────────────────────────────
+
+pre-commit: vet lint test build audit
+	@echo "==> Pre-commit checks passed"
 
 clean:
 	rm -f $(BINARY) workiq-proxy-*

@@ -5,7 +5,7 @@
 // All project-specific values come from package.json.
 
 const https = require("https");
-const http = require("http");
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
@@ -43,8 +43,12 @@ function download(downloadUrl, downloadDest, redirects) {
     process.exit(1);
   }
 
-  const client = downloadUrl.startsWith("https") ? https : http;
-  client.get(downloadUrl, (res) => {
+  if (!downloadUrl.startsWith("https://")) {
+    console.error(`${pkg.name}: refusing non-HTTPS download URL: ${downloadUrl}`);
+    process.exit(1);
+  }
+
+  https.get(downloadUrl, (res) => {
     if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
       download(res.headers.location, downloadDest, redirects + 1);
       return;
@@ -52,20 +56,104 @@ function download(downloadUrl, downloadDest, redirects) {
     if (res.statusCode !== 200) {
       console.error(`${pkg.name}: download failed (HTTP ${res.statusCode}) from ${downloadUrl}`);
       console.error(`You can download the binary manually from the releases page.`);
-      process.exit(1);
+      console.error(`The package is installed but the native binary is missing.`);
+      process.exit(0); // Don't break npm install — run.js falls back to npx.
+      return;
     }
     const file = fs.createWriteStream(downloadDest);
     res.pipe(file);
     file.on("finish", () => {
       file.close();
-      fs.chmodSync(downloadDest, 0o755);
-      offerEula();
+      verifyChecksum(downloadDest, () => {
+        fs.chmodSync(downloadDest, 0o755);
+        offerEula();
+      });
     });
   }).on("error", (err) => {
     console.error(`${pkg.name}: download failed: ${err.message}`);
     console.error(`You can download the binary manually from the releases page.`);
-    process.exit(1);
+    console.error(`The package is installed but the native binary is missing.`);
+    process.exit(0); // Don't break npm install — run.js falls back to npx.
   });
+}
+
+// Verify the downloaded binary against checksums.txt from the same release.
+// This is best-effort — if the checksum file can't be fetched, we warn but
+// don't fail the install.
+function verifyChecksum(filePath, onSuccess) {
+  const checksumsUrl = config.downloadURL
+    .replace("{{version}}", VERSION)
+    .replace("{{binary}}", "checksums.txt");
+
+  fetchText(checksumsUrl, (err, body) => {
+    if (err) {
+      console.error(`${pkg.name}: warning: could not fetch checksums.txt (${err.message})`);
+      console.error(`${pkg.name}: skipping integrity check`);
+      onSuccess();
+      return;
+    }
+
+    const expected = parseChecksums(body, binary);
+    if (!expected) {
+      console.error(`${pkg.name}: warning: ${binary} not found in checksums.txt`);
+      console.error(`${pkg.name}: skipping integrity check`);
+      onSuccess();
+      return;
+    }
+
+    const actual = sha256File(filePath);
+    if (actual !== expected) {
+      console.error(`${pkg.name}: CHECKSUM MISMATCH for ${binary}`);
+      console.error(`  expected: ${expected}`);
+      console.error(`  actual:   ${actual}`);
+      console.error(`${pkg.name}: deleting corrupted binary`);
+      try { fs.unlinkSync(filePath); } catch { /* ignore */ }
+      process.exit(0); // Don't break npm install, but don't run the bad binary.
+      return;
+    }
+
+    console.log(`${pkg.name}: checksum verified`);
+    onSuccess();
+  });
+}
+
+function sha256File(filePath) {
+  const data = fs.readFileSync(filePath);
+  return crypto.createHash("sha256").update(data).digest("hex");
+}
+
+function parseChecksums(text, filename) {
+  for (const line of text.split("\n")) {
+    const parts = line.trim().split(/\s+/);
+    if (parts.length >= 2 && parts[1] === filename) {
+      return parts[0].toLowerCase();
+    }
+  }
+  return null;
+}
+
+function fetchText(fetchUrl, cb, redirects) {
+  if ((redirects || 0) > 5) {
+    cb(new Error("too many redirects"));
+    return;
+  }
+  if (!fetchUrl.startsWith("https://")) {
+    cb(new Error(`refusing non-HTTPS URL: ${fetchUrl}`));
+    return;
+  }
+  https.get(fetchUrl, (res) => {
+    if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+      fetchText(res.headers.location, cb, (redirects || 0) + 1);
+      return;
+    }
+    if (res.statusCode !== 200) {
+      cb(new Error(`HTTP ${res.statusCode}`));
+      return;
+    }
+    let body = "";
+    res.on("data", (d) => { body += d; });
+    res.on("end", () => cb(null, body));
+  }).on("error", cb);
 }
 
 // After binary download, offer interactive EULA acceptance if possible.
