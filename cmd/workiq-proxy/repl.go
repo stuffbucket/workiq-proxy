@@ -10,61 +10,62 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 )
 
-var (
-	dimDot    = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	brightDot = lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
-)
+// spinnerModel is a minimal Bubble Tea model that shows a spinner on stderr.
+type spinnerModel struct {
+	spinner spinner.Model
+	done    bool
+}
 
-// startSpinner launches a goroutine that animates the bubbles Points
-// spinner on stderr with per-character coloring. Call the returned
-// function to stop it and clear the line.
-func startSpinner() func() {
-	stop := make(chan struct{})
-	done := make(chan struct{})
-	// Build styled frames from bubbles spinner.Points and arrange as
-	// a bounce sequence: ●∙∙ ∙●∙ ∙∙● ∙●∙ (always one dot highlighted).
-	styledFrames := make([]string, 0, len(spinner.Points.Frames))
-	for _, f := range spinner.Points.Frames {
-		var b strings.Builder
-		for _, r := range f {
-			if r == '●' {
-				b.WriteString(brightDot.Render(string(r)))
-			} else {
-				b.WriteString(dimDot.Render(string(r)))
-			}
-		}
-		styledFrames = append(styledFrames, b.String())
+func newSpinnerModel() spinnerModel {
+	s := spinner.New(spinner.WithSpinner(spinner.MiniDot))
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("63"))
+	return spinnerModel{spinner: s}
+}
+
+type spinnerStopMsg struct{}
+
+func (m spinnerModel) Init() tea.Cmd { return m.spinner.Tick }
+
+func (m spinnerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg.(type) {
+	case spinnerStopMsg:
+		m.done = true
+		return m, tea.Quit
+	default:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
 	}
-	// Skip the all-dim frame (index 0), bounce the rest: 1,2,3,2,1,2,3,...
-	frames := []string{styledFrames[1], styledFrames[2], styledFrames[3], styledFrames[2]}
-	n := len(frames)
-	go func() {
-		defer close(done)
-		i := 0
-		fmt.Fprint(os.Stderr, "\033[?25l") // hide cursor
-		t := time.NewTicker(250 * time.Millisecond)
-		defer t.Stop()
-		for {
-			select {
-			case <-stop:
-				fmt.Fprint(os.Stderr, "\r\033[K\033[?25h") // clear line, show cursor
-				return
-			case <-t.C:
-				fmt.Fprintf(os.Stderr, "\r  %s", frames[i%n])
-				i++
-			}
-		}
-	}()
+}
+
+func (m spinnerModel) View() string {
+	if m.done {
+		return ""
+	}
+	return "  " + m.spinner.View()
+}
+
+// startSpinner launches a Bubble Tea program on stderr that shows an
+// animated spinner. Call the returned function to stop it and clear
+// the line. All terminal handling (cursor, alternate screen, VT
+// processing) is managed by Bubble Tea.
+func startSpinner() func() {
+	p := tea.NewProgram(
+		newSpinnerModel(),
+		tea.WithOutput(os.Stderr),
+		tea.WithoutSignalHandler(),
+	)
+	go p.Run() //nolint:errcheck
 	return func() {
-		close(stop)
-		<-done
+		p.Send(spinnerStopMsg{})
+		p.Wait()
 	}
 }
 

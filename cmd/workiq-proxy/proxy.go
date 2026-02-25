@@ -10,7 +10,6 @@ import (
 	"os/signal"
 	"strings"
 	"sync"
-	"syscall"
 )
 
 func runProxy(cmdParts []string, tty bool) {
@@ -40,11 +39,16 @@ func runProxy(cmdParts []string, tty bool) {
 	}
 
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigCh, os.Interrupt)
 	go func() {
-		for sig := range sigCh {
-			child.Process.Signal(sig)
-		}
+		<-sigCh
+		// os.Interrupt works cross-platform; follow up with Kill
+		// in case the child doesn't exit promptly (e.g. on Windows).
+		_ = child.Process.Signal(os.Interrupt)
+		go func() {
+			<-sigCh
+			_ = child.Process.Kill()
+		}()
 	}()
 
 	var outMu sync.Mutex

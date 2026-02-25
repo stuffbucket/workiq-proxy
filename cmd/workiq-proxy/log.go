@@ -8,7 +8,10 @@ import (
 )
 
 func stateDir() string {
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return ""
+	}
 	return filepath.Join(home, ".work-iq-cli")
 }
 
@@ -16,7 +19,11 @@ func resolveLogFile() string {
 	if *logFile != "" {
 		return *logFile
 	}
-	return filepath.Join(stateDir(), "mcp-traffic.log")
+	dir := stateDir()
+	if dir == "" {
+		return ""
+	}
+	return filepath.Join(dir, "mcp-traffic.log")
 }
 
 func logMsg(direction string, data []byte) {
@@ -24,6 +31,9 @@ func logMsg(direction string, data []byte) {
 		return
 	}
 	p := resolveLogFile()
+	if p == "" {
+		return
+	}
 	_ = os.MkdirAll(filepath.Dir(p), 0o700)
 	f, err := os.OpenFile(p, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
