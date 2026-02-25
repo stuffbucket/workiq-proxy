@@ -19,7 +19,7 @@ sidebar:
 | `json` | Interactive JSON-RPC mode for debugging |
 | `help` | Show usage |
 
-When run from an interactive terminal with no subcommand, workiq-proxy detects the TTY and launches the Work IQ CLI interactively.
+When run from an interactive terminal with no subcommand, workiq-proxy launches an interactive REPL with slash commands (`/ask`, `/emails`, `/docs`, etc.). Type `/help` to see available commands.
 
 When stdin is piped (non-TTY), it defaults to MCP proxy mode — this is how MCP clients like Claude Code invoke it.
 

@@ -41,7 +41,10 @@ export default defineConfig({
         },
       ],
       tableOfContents: { minHeadingLevel: 2, maxHeadingLevel: 4 },
-      customCss: ['./src/styles/custom.css'],
+      customCss: [
+        '@fontsource-variable/inter',
+        './src/styles/custom.css',
+      ],
       components: {
         Hero: './src/components/Hero.astro',
       },

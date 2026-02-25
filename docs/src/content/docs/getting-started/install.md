@@ -41,4 +41,4 @@ workiq-proxy extends [Microsoft Work IQ](https://github.com/microsoft/work-iq-mc
 
 - **Node.js 18+** — required by the `@microsoft/workiq` npm package that the proxy spawns
 - **Microsoft 365 Copilot license** — Work IQ queries the M365 Copilot Chat API; your tenant must have it enabled
-- **Admin-consented permissions** — a tenant admin must grant the required delegated permissions (see [Setup](/workiq/getting-started/setup/))
+- **Admin-consented permissions** — a tenant admin must grant the required delegated permissions (see [Admin Consent](/workiq-proxy/reference/admin/))
