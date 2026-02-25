@@ -3,7 +3,7 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
 const GITHUB_USER = 'stuffbucket';
-const REPO_NAME = 'workiq';
+const REPO_NAME = 'workiq-proxy';
 const IS_USER_SITE = false;
 
 export default defineConfig({
