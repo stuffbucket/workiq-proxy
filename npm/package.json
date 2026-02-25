@@ -14,10 +14,13 @@
     "url": "git+https://github.com/stuffbucket/workiq-proxy.git"
   },
   "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "os": ["darwin", "linux", "win32"],
   "cpu": ["x64", "arm64"],
   "dependencies": {
-    "@microsoft/workiq": ">=0.2.0"
+    "@microsoft/workiq": "^0.2.0"
   },
   "nativeBinary": {
     "binDir": "bin",

@@ -29,8 +29,14 @@ jobs:
       - name: Install JS dev dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Scan for Go vulnerabilities
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./cmd/workiq-proxy/
+
       - name: Build all platforms
         run: make all
+
+      - name: Generate checksums
+        run: sha256sum workiq-proxy-* > checksums.txt
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -42,6 +48,7 @@ jobs:
             workiq-proxy-linux-arm64
             workiq-proxy-win-x64.exe
             workiq-proxy-win-arm64.exe
+            checksums.txt
 
   publish-npm:
     needs: build
@@ -66,5 +73,5 @@ jobs:
       - name: Copy README and LICENSE into npm dir
         run: cp README.md LICENSE npm/
 
-      - name: Publish to npm
-        run: cd npm && npm publish --access public
+      - name: Publish to npm with provenance
+        run: cd npm && npm publish --access public --provenance

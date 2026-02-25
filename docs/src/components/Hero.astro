@@ -1,0 +1,89 @@
+---
+// Custom Hero — renders the landing page hero on the index page,
+// falls back to Starlight's default Hero on all other pages.
+import type { Props } from '@astrojs/starlight/props';
+import Default from '@astrojs/starlight/components/Hero.astro';
+
+const slug = Astro.locals.starlightRoute?.slug ?? Astro.props.slug ?? '';
+const isIndex = slug === '' || slug === 'index';
+---
+
+{isIndex ? (
+  <div class="hero-landing">
+    <h1>Search your work<br />from your AI assistant.</h1>
+    <p class="hero-tagline">
+      Connect Microsoft 365 to Claude, VS Code, Codex, and more.
+      Emails, docs, chats, meetings, people — all searchable in one place.
+    </p>
+
+    <div class="hero-actions">
+      <a href="getting-started/install/" class="primary">Get started</a>
+      <a href="https://github.com/stuffbucket/workiq" class="secondary">GitHub</a>
+    </div>
+
+    <div class="install-command">
+      <span style="color:#6b7280;">$</span> npm install -g @stuffbucket/workiq-proxy
+    </div>
+
+    <div class="arch-diagram">
+      MCP Client &nbsp;←stdio→&nbsp; <strong>workiq-proxy</strong> &nbsp;←stdio→&nbsp; workiq mcp
+    </div>
+
+    <div class="features">
+      <div class="feature">
+        <h3>Works everywhere</h3>
+        <p>Claude Code, VS Code, Codex, and any MCP-compatible AI assistant. One proxy, every client.</p>
+      </div>
+      <div class="feature">
+        <h3>7 search tools</h3>
+        <p>Emails, documents, chats, channels, meetings, people, and external items — each with its own dedicated tool.</p>
+      </div>
+      <div class="feature">
+        <h3>Run it like a local LLM</h3>
+        <p>Serve mode runs a local server that any OpenAI-compatible app can talk to — just point it at localhost.</p>
+      </div>
+      <div class="feature">
+        <h3>One install, everything included</h3>
+        <p>Auth, setup, queries, and the MCP server all in a single binary. Nothing else to install.</p>
+      </div>
+      <div class="feature">
+        <h3>Future-proof</h3>
+        <p>Automatically steps aside when Work IQ gains new capabilities. Zero maintenance.</p>
+      </div>
+      <div class="feature">
+        <h3>Full visibility</h3>
+        <p>Every request and response logged for easy debugging. Turn it off with one flag.</p>
+      </div>
+    </div>
+
+    <div class="quick-steps">
+      <h2>Up and running in 3 steps</h2>
+
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h3>Install</h3>
+          <p><code>npm install -g @stuffbucket/workiq-proxy</code></p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h3>Authenticate</h3>
+          <p><code>workiq-proxy ask</code> — accepts EULA and signs in via browser.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h3>Connect</h3>
+          <p>Add the MCP server to your AI assistant. Done.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+) : (
+  <Default {...Astro.props}><slot /></Default>
+)}

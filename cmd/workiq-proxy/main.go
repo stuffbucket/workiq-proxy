@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"unicode"
 )
 
 //go:embed banner.txt
@@ -27,11 +28,15 @@ func isTerminal() bool {
 }
 
 func main() {
+	flag.Usage = func() {
+		printUsage()
+		os.Exit(0)
+	}
 	flag.Parse()
 
 	tty := isTerminal()
 
-	cmdParts := strings.Fields(*workiqCmd)
+	cmdParts := splitFields(*workiqCmd)
 	if len(cmdParts) == 0 {
 		fmt.Fprintln(os.Stderr, "workiq-proxy: --workiq-cmd cannot be empty")
 		os.Exit(1)
@@ -94,6 +99,32 @@ func main() {
 	// No TTY, no subcommand → MCP proxy mode (implicit).
 	cmdParts = append(cmdParts, "mcp")
 	runProxy(cmdParts, false)
+}
+
+// splitFields splits s on whitespace like strings.Fields but respects
+// double-quoted segments. This handles Windows paths with spaces
+// (e.g. `"C:\Program Files\nodejs\node.exe" "C:\path\to\workiq.js"`).
+func splitFields(s string) []string {
+	var parts []string
+	var buf strings.Builder
+	inQuote := false
+	for _, r := range s {
+		switch {
+		case r == '"':
+			inQuote = !inQuote
+		case !inQuote && unicode.IsSpace(r):
+			if buf.Len() > 0 {
+				parts = append(parts, buf.String())
+				buf.Reset()
+			}
+		default:
+			buf.WriteRune(r)
+		}
+	}
+	if buf.Len() > 0 {
+		parts = append(parts, buf.String())
+	}
+	return parts
 }
 
 func printUsage() {

@@ -1,10 +1,10 @@
 # workiq-proxy
 
-MCP compatibility proxy for [Microsoft Work IQ](https://github.com/microsoft/work-iq-mcp). Wraps the `workiq mcp` server and fixes interoperability issues with Claude Code, VS Code, and other MCP clients. Also provides an interactive REPL and an OpenAI-compatible HTTP API.
+Extends [Microsoft Work IQ](https://github.com/microsoft/work-iq-mcp) with broad MCP client support, structured search tools, an interactive REPL, and an OpenAI-compatible HTTP API.
 
 ## What it does
 
-Work IQ's MCP server only declares `tools` and `logging` capabilities. MCP clients like Claude Code also call `prompts/list` and `resources/list`, which return `-32601` errors and can break the connection ([work-iq-mcp#38](https://github.com/microsoft/work-iq-mcp/issues/38)).
+workiq-proxy enhances Work IQ's MCP server so it works seamlessly with Claude Code, VS Code, Codex, and other MCP clients.
 
 In MCP mode the proxy sits between the MCP client and the Work IQ server:
 
@@ -14,9 +14,9 @@ MCP Client <-stdio-> workiq-proxy <-stdio-> workiq mcp
 
 It:
 
-1. **Intercepts unsupported methods** — Returns empty valid responses for `prompts/list`, `resources/list`, and `resources/templates/list`
-2. **Patches initialize capabilities** — Adds `prompts` and `resources` so clients see a fully capable server
-3. **Self-disables** — If a future Work IQ version declares these capabilities, the proxy stops intercepting
+1. **Extends MCP capabilities** — Adds support for `prompts/list`, `resources/list`, and `resources/templates/list` so every MCP client connects cleanly
+2. **Advertises full capabilities** — Ensures clients see a fully capable server during initialization
+3. **Future-proof** — Automatically steps aside when Work IQ gains these capabilities natively
 4. **Error enrichment** — Wraps opaque errors with troubleshooting context (EULA not accepted, token protection / error 530084, Entra ID conditional access / AADSTS, interactive login required, and "Failed to create conversation")
 5. **Synthetic tools** — Exposes 7 domain-specific tools (`search_emails`, `search_documents`, `search_chats`, `search_channels`, `search_meetings`, `search_people`, `search_external`) backed by `ask_work_iq`
 6. **Interactive REPL** — When run from a terminal with no arguments, launches a Bubble Tea UI with slash commands (`/ask`, `/emails`, `/docs`, `/chats`, `/channels`, `/meetings`, `/people`, `/accept-eula`, `/tools`, `/help`, `/quit`), session history, and glamour markdown rendering
