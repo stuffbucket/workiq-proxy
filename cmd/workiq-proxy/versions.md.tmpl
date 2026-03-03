@@ -1,0 +1,30 @@
+---
+# AUTO-GENERATED — do not edit by hand.
+# Run "make docs" or "go generate ./cmd/workiq-proxy/" to regenerate.
+title: Versions
+description: Component and dependency versions compiled into this build.
+sidebar:
+  order: 50
+---
+
+## Core
+
+| Component | Version |
+|-----------|---------|
+{{ range .Core -}}
+| `{{ .Component }}` | {{ .Version }} |
+{{ end }}
+## npm
+
+| Package | Version |
+|---------|---------|
+{{ range .Npm -}}
+| `{{ .Component }}` | {{ .Version }} |
+{{ end }}
+## Go Modules
+
+| Module | Version |
+|--------|---------|
+{{ range .Go -}}
+| `{{ .Component }}` | {{ .Version }} |
+{{ end }}

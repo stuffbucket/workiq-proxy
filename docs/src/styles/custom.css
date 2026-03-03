@@ -142,7 +142,7 @@ body:has(.hero-landing) .main-frame {
 }
 
 .hero-landing h1 {
-  font-size: clamp(3.25rem, 5.5vw + 1rem, 5rem);
+  font-size: clamp(3.16rem, 6vw + 1rem, 5.619rem);
   font-weight: 760;
   font-optical-sizing: auto;
   font-size-adjust: from-font;
@@ -163,11 +163,11 @@ body:has(.hero-landing) .main-frame {
 }
 
 .hero-landing .hero-tagline {
-  font-size: clamp(1.125rem, 1.5vw + 0.5rem, 1.35rem);
-  font-weight: 400;
-  letter-spacing: 0.025em;
-  color: var(--sl-color-gray-2);
-  line-height: 1.7;
+  font-size: clamp(1.15rem, 1.5vw + 0.5rem, 1.333rem);
+  font-weight: 560;
+  letter-spacing: -0.005em;
+  color: var(--sl-color-gray-1);
+  line-height: 1.65;
   margin: 0 0 2.5rem;
   max-width: 75ch;
   margin-inline: auto;
@@ -399,13 +399,153 @@ body:has(.hero-landing) .main-frame {
 }
 
 .feature p {
-  font-size: 1rem; /* 16px — P sizing */
-  font-weight: 420;
-  letter-spacing: 0.025em;
+  font-size: 1rem;
+  font-weight: 560;
+  letter-spacing: -0.005em;
   color: var(--sl-color-gray-2);
-  line-height: 1.6;
+  line-height: 1.5;
   margin: 0.5rem 0 0;
   grid-column: 1 / -1;
+}
+
+/* ── Terminal window chrome (tuple.app style) ───────────────── */
+
+.terminal-window {
+  position: relative;
+  z-index: 1;
+  max-width: 54rem;
+  margin: 0 auto 3rem;
+  margin-inline: max(1rem, calc((100% - 54rem) / 2));
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 8px 40px rgba(0, 0, 0, 0.35),
+    0 2px 12px rgba(0, 0, 0, 0.2);
+  background: #0d1117;
+}
+
+:root[data-theme='light'] .terminal-window {
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.08),
+    0 8px 40px rgba(0, 0, 0, 0.12),
+    0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+.terminal-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  background: #161b22;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  user-select: none;
+}
+
+.terminal-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.terminal-dot.red    { background: #ff5f57; }
+.terminal-dot.yellow { background: #febc2e; }
+.terminal-dot.green  { background: #28c840; }
+
+.terminal-title {
+  flex: 1;
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.35);
+  letter-spacing: 0.03em;
+  margin-right: 42px; /* offset for dots to center text */
+}
+
+#terminal-container {
+  height: 420px;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+#terminal-shell {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  background: #0d1117;
+  overflow: hidden;
+}
+
+.terminal-gutter {
+  flex: 0 0 4px;
+  background: #0d1117;
+}
+
+#terminal-inner {
+  height: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  background: #0d1117;
+}
+
+#terminal-container .xterm {
+  height: 100%;
+  padding: 8px 0;
+  box-sizing: border-box;
+}
+
+#terminal-container .xterm-viewport {
+  background: #0d1117;
+  scrollbar-color: #30363d #0d1117;
+}
+
+#terminal-container .xterm-viewport::-webkit-scrollbar {
+  width: 10px;
+}
+
+#terminal-container .xterm-viewport::-webkit-scrollbar-track {
+  background: #0d1117;
+}
+
+#terminal-container .xterm-viewport::-webkit-scrollbar-thumb {
+  background: #30363d;
+  border-radius: 8px;
+}
+
+/* Make xterm.js hyperlinks (OSC8) show a pointer cursor + underline on hover */
+#terminal-container .xterm a {
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.terminal-offline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 340px;
+  gap: 0.75rem;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.875rem;
+}
+
+.terminal-offline[hidden] {
+  display: none;
+}
+
+.terminal-offline p {
+  margin: 0;
+}
+
+.terminal-offline code {
+  font-family: var(--sl-font-mono);
+  font-size: 0.8rem;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.6);
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
 }
 
 /* ── Quick-start steps ──────────────────────────────────────── */
@@ -419,7 +559,7 @@ body:has(.hero-landing) .main-frame {
 }
 
 .quick-steps h2 {
-  font-size: clamp(1.75rem, 3vw + 0.5rem, 2.5rem);
+  font-size: clamp(2.37rem, 4vw + 0.75rem, 3.157rem);
   font-weight: 700;
   letter-spacing: 0.03em;
   line-height: 1.25;

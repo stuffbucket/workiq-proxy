@@ -5,27 +5,49 @@ run:
 
 linters:
   enable:
-    - errcheck
-    - govet
-    - staticcheck
-    - unused
-    - ineffassign
-    - gocritic
-    - misspell
-    - unconvert
-    - unparam
-    - prealloc
-    - gosec
+    # ── Correctness ──────────────────────────────────────────────
+    - errcheck        # unchecked error returns
+    - govet           # go vet on steroids
+    - staticcheck     # the big one: SA/S/ST/QF checks
+    - unused          # dead code
+    - ineffassign     # assignments that are never read
+    - wastedassign    # dead stores (caught our eula.go Kill+drain)
+    - nilerr          # returning nil when err != nil
+    - bodyclose       # leaked HTTP response bodies
+    - durationcheck   # time.Duration arithmetic mistakes
+    - makezero        # append to non-empty pre-allocated slices
+    - noctx           # http.NewRequest without context
+    - copyloopvar     # loop variable capture (pre-Go 1.22)
+    - exhaustive      # missing switch cases (caught our buildQuestion gap)
+
+    # ── Style / consistency ──────────────────────────────────────
+    - gocritic        # opinionated but useful code patterns
+    - misspell        # typos in comments and strings
+    - unconvert       # unnecessary type conversions
+    - unparam         # unused function parameters
+    - prealloc        # slice preallocation hints
+    - goconst         # repeated strings that should be constants
+    - usestdlibvars   # use http.MethodGet instead of "GET", etc.
+    - errname         # error type naming (FooError, ErrFoo)
+    - errorlint       # correct use of %w, errors.Is/As
+
+    # ── Security ─────────────────────────────────────────────────
+    - gosec           # security-oriented checks
 
   settings:
     gosec:
       excludes:
-        - G104
-        - G204
-        - G304
-        - G705
+        - G104        # unhandled errors (covered by errcheck)
+        - G115        # int-to-uint conversion (we guard with > 0 checks)
+        - G204        # subprocess with variable args (we exec child processes by design)
+        - G304        # file path from variable (config file reads)
+        - G705        # range over map (non-deterministic order is fine)
     misspell:
       locale: US
+    exhaustive:
+      default-signifies-exhaustive: true
+    goconst:
+      min-occurrences: 3
 
   exclusions:
     rules:
@@ -33,18 +55,38 @@ linters:
         linters:
           - errcheck
           - gosec
+          - goconst
+          - unparam
+          - prealloc
       - path: proxy\.go$
         linters:
           - errcheck
+          - noctx
       - path: eula\.go$
         linters:
           - errcheck
+          - noctx
       - path: repl\.go$
         linters:
           - errcheck
+          - noctx
       - path: log\.go$
+        linters:
+          - errcheck
+      - path: help\.go$
         linters:
           - errcheck
       - path: slash\.go$
         linters:
           - gocritic
+          - exhaustive
+      - path: install\.go$
+        linters:
+          - errcheck
+          - noctx
+      - path: serve\.go$
+        linters:
+          - noctx
+      - path: web\.go$
+        linters:
+          - noctx

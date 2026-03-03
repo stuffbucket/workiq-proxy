@@ -13,20 +13,21 @@ import (
 
 // slashCommand describes a single REPL slash command.
 type slashCommand struct {
-	name   string
-	desc   string
-	hasArg bool // true if the command expects a trailing argument
+	name    string
+	desc    string
+	hasArg  bool   // true if the command expects a trailing argument
+	argHint string // display hint for help (e.g. "[opts]", "<name>"); empty = none
 }
 
 var slashCommands = []slashCommand{
-	{name: "/ask", desc: "Ask Microsoft 365 Copilot a question", hasArg: true},
-	{name: "/emails", desc: "Search emails (from: subject: date:)", hasArg: true},
-	{name: "/docs", desc: "Search documents (name: site: type:)", hasArg: true},
-	{name: "/chats", desc: "Search chats (with: date:)", hasArg: true},
-	{name: "/channels", desc: "Search channels (team: channel: date:)", hasArg: true},
-	{name: "/meetings", desc: "Search meetings (by: subject: date:)", hasArg: true},
-	{name: "/people", desc: "Search people (name: dept: project:)", hasArg: true},
+	{name: "/emails", desc: "Search emails (from: subject: date:)", hasArg: true, argHint: "[opts]"},
+	{name: "/docs", desc: "Search documents (name: site: type:)", hasArg: true, argHint: "[opts]"},
+	{name: "/chats", desc: "Search chats (with: date:)", hasArg: true, argHint: "[opts]"},
+	{name: "/channels", desc: "Search channels (team: channel: date:)", hasArg: true, argHint: "[opts]"},
+	{name: "/meetings", desc: "Search meetings (by: subject: date:)", hasArg: true, argHint: "[opts]"},
+	{name: "/people", desc: "Search people (name: dept: project:)", hasArg: true, argHint: "[opts]"},
 	{name: "/accept-eula", desc: "Accept the Work IQ EULA"},
+	{name: "/title", desc: "Set terminal/tab title", hasArg: true, argHint: "<name>"},
 	{name: "/tools", desc: "List available MCP tools"},
 	{name: "/help", desc: "Show available commands"},
 	{name: "/quit", desc: "Exit"},
@@ -228,12 +229,28 @@ func (m promptModel) View() string {
 	var b strings.Builder
 	b.WriteString(m.input.View())
 
+	// Always render exactly 4 lines below the prompt (3 menu + 1 hint)
+	// so the view height never changes and the terminal doesn't scroll.
+	const maxVisible = 3
+	const menuLines = maxVisible + 1 // items + hint
+
 	if m.showMenu && len(m.matches) > 0 {
-		b.WriteByte('\n')
-		for i, c := range m.matches {
-			if i > 0 {
-				b.WriteByte('\n')
+		start := 0
+		if m.cursor >= maxVisible {
+			start = m.cursor - maxVisible + 1
+		}
+		end := start + maxVisible
+		if end > len(m.matches) {
+			end = len(m.matches)
+			start = end - maxVisible
+			if start < 0 {
+				start = 0
 			}
+		}
+
+		for i := start; i < end; i++ {
+			b.WriteByte('\n')
+			c := m.matches[i]
 			if i == m.cursor {
 				b.WriteString(fmt.Sprintf("  %s %s %s",
 					menuCursorStyle.Render("▸"),
@@ -244,6 +261,20 @@ func (m promptModel) View() string {
 					menuDimCmdStyle.Render(c.name),
 					menuDimDescStyle.Render(c.desc)))
 			}
+		}
+
+		// Pad to maxVisible lines so the menu height stays constant.
+		for i := end - start; i < maxVisible; i++ {
+			b.WriteByte('\n')
+		}
+
+		// Hint line
+		b.WriteString(fmt.Sprintf("\n  %s",
+			menuDimDescStyle.Render("↑↓ to navigate · tab to complete · esc to dismiss")))
+	} else {
+		// Menu not visible — emit blank lines to keep view height stable.
+		for i := 0; i < menuLines; i++ {
+			b.WriteByte('\n')
 		}
 	}
 

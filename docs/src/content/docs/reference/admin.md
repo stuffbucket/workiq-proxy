@@ -6,19 +6,23 @@ sidebar:
   order: 4
 ---
 
-workiq-proxy queries Microsoft 365 via delegated permissions. A tenant admin must grant consent before any user in the organization can authenticate.
+Before anyone on your team can use workiq-proxy, a tenant admin needs to grant one-time consent for the required Microsoft Graph permissions. This takes about 30 seconds.
+
+workiq-proxy queries Microsoft 365 via **delegated permissions** — it can only access data that the signed-in user already has access to. It does not use application permissions and cannot access other users' data.
 
 ## Required delegated permissions
 
-| Permission | What it reads |
-|-----------|---------------|
-| `Mail.Read` | Your email |
-| `Chat.Read` | Teams chat messages |
-| `ChannelMessage.Read.All` | Teams channel messages |
-| `Sites.Read.All` | SharePoint / OneDrive documents |
-| `People.Read.All` | Org directory |
-| `OnlineMeetingTranscript.Read.All` | Meeting transcripts |
-| `ExternalItem.Read.All` | External connector items |
+| Permission | What it reads | Why |
+|-----------|---------------|-----|
+| `Mail.Read` | The user's email | Email search |
+| `Chat.Read` | The user's Teams chats | Chat search |
+| `ChannelMessage.Read.All` | Teams channel messages | Channel search |
+| `Sites.Read.All` | SharePoint / OneDrive documents | Document search |
+| `People.Read.All` | Org directory profiles | People search |
+| `OnlineMeetingTranscript.Read.All` | Meeting transcripts | Meeting search |
+| `ExternalItem.Read.All` | Graph connector items | External search |
+
+All permissions are **read-only**. workiq-proxy never writes, modifies, or deletes any data.
 
 ## Admin consent URL
 
@@ -28,4 +32,4 @@ https://login.microsoftonline.com/{tenant-id}/adminconsent?client_id=ba081686-5d
 
 Replace `{tenant-id}` with your Microsoft Entra tenant ID.
 
-Once an admin has granted consent, individual users can authenticate by running any data query — the OAuth flow will open automatically in their browser.
+After granting consent, individual users can authenticate by running any data query — their browser will open to a Microsoft sign-in page automatically.

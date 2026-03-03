@@ -12,7 +12,7 @@ PLATFORMS = \
 	windows/amd64/workiq-proxy-win-x64.exe \
 	windows/arm64/workiq-proxy-win-arm64.exe
 
-.PHONY: build test vet clean all setup lint lint-go lint-js audit audit-go audit-js release
+.PHONY: build test vet clean all setup lint lint-go lint-js audit audit-go audit-js release docs licenses
 
 # ── Development setup ────────────────────────────────────────────
 
@@ -49,14 +49,31 @@ lint-js:
 
 # ── Build / Test ─────────────────────────────────────────────────
 
-build:
+build: docs
 	go build -ldflags "$(LDFLAGS)" -o $(BINARY) $(MODULE)
 
 test:
-	go test -v -count=1 $(MODULE)
+	go test -race -count=1 $(MODULE)
 
 vet:
 	go vet $(MODULE)
+
+# ── Doc Generation ───────────────────────────────────────────────
+
+docs:
+	go test -run TestGenerateDocs $(MODULE) -args -update-docs
+
+# ── License Collection ───────────────────────────────────────────
+
+licenses:
+	@echo "==> Collecting third-party licenses..."
+	go run cmd/workiq-proxy/gen_licenses.go
+	@cp LICENSE cmd/workiq-proxy/LICENSE
+	@cp THIRD_PARTY_DISCLOSURES.md cmd/workiq-proxy/THIRD_PARTY_DISCLOSURES.md
+	@echo "==> Copied LICENSE and THIRD_PARTY_DISCLOSURES.md into cmd/workiq-proxy/ for embedding"
+	@cp LICENSE npm/LICENSE
+	@cp THIRD_PARTY_DISCLOSURES.md npm/THIRD_PARTY_DISCLOSURES.md
+	@echo "==> Copied LICENSE and THIRD_PARTY_DISCLOSURES.md into npm/ for distribution"
 
 # ── Vulnerability / Audit ────────────────────────────────────────
 
@@ -78,6 +95,8 @@ pre-commit: vet lint test build audit
 
 clean:
 	rm -f $(BINARY) workiq-proxy-*
+	rm -rf docs/dist docs/node_modules/.astro docs/.astro
+	go clean -cache -testcache
 
 all: clean lint test
 	@for platform in $(PLATFORMS); do \

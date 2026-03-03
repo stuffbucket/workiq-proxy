@@ -19,9 +19,9 @@ const base = import.meta.env.BASE_URL;
       <!-- 
       <p class="hero-badge">WorkIQ</p> 
       -->
-      <h1>Search <span class="text-gradient">your work</span><br />from <span class="text-gradient">any AI</span> assistant.</h1>
+      <h1><span class="text-gradient">Work </span>with tools <br />that work <span class="text-gradient">together </span></h1>
       <h2 class="hero-tagline">
-        Emails, docs, chats, meetings, people: one install, every client.
+        Get AI tools to work together with one install to rule them all.
       </h2>
 
       <div class="install-command">
@@ -40,6 +40,28 @@ const base = import.meta.env.BASE_URL;
         GitHub
       </a>
     </div>
+
+    <!-- xterm goes here -->
+
+    <section class="terminal-window" aria-label="Live terminal">
+      <div class="terminal-titlebar">
+        <span class="terminal-dot red"></span>
+        <span class="terminal-dot yellow"></span>
+        <span class="terminal-dot green"></span>
+        <span class="terminal-title">workiq-proxy</span>
+      </div>
+      <div id="terminal-container">
+        <div id="terminal-shell">
+          <div class="terminal-gutter" aria-hidden="true"></div>
+          <div id="terminal-inner"></div>
+          <div class="terminal-gutter" aria-hidden="true"></div>
+        </div>
+      </div>
+      <div id="terminal-offline" class="terminal-offline" hidden>
+        <p>Start the proxy to connect:</p>
+        <code>workiq-proxy serve</code>
+      </div>
+    </section>
 
     <section class="features">
       <div class="feature">
@@ -118,4 +140,289 @@ const base = import.meta.env.BASE_URL;
       el.style.setProperty('--spot-y', `${e.clientY - rect.top}px`);
     });
   });
+
+  // Live terminal via xterm.js
+  async function initTerminal() {
+    const container = document.getElementById('terminal-container');
+    const terminalInner = document.getElementById('terminal-inner');
+    const offline = document.getElementById('terminal-offline');
+    if (!container || !terminalInner) return;
+
+    const { Terminal } = await import('xterm');
+    const { FitAddon } = await import('@xterm/addon-fit');
+    const { WebLinksAddon } = await import('@xterm/addon-web-links');
+
+    const fitAddon = new FitAddon();
+
+    const term = new Terminal({
+      cursorBlink: true,
+      fontSize: 13,
+      fontFamily: "'SF Mono', 'Fira Code', 'JetBrains Mono', Menlo, Consolas, monospace",
+      linkHandler: {
+        activate(event: MouseEvent, uri: string) {
+          // Prompt links work on plain click; external URLs need Cmd/Ctrl-click (iTerm2 style).
+          try {
+            const u = new URL(uri);
+            if (u.hostname === 'workiq.prompt') {
+              event.preventDefault();
+              const text = u.searchParams.get('q') || '';
+              if (text && ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(new TextEncoder().encode(text + '\r'));
+              }
+              term.focus();
+              return;
+            }
+          } catch { /* not a valid URL, fall through */ }
+          if (event.metaKey || event.ctrlKey) {
+            window.open(uri, '_blank', 'noopener');
+          }
+        },
+      },
+      theme: {
+        background: '#0d1117',
+        foreground: '#c9d1d9',
+        cursor: '#58a6ff',
+        selectionBackground: '#264f78',
+        black: '#0d1117',
+        red: '#ff7b72',
+        green: '#7ee787',
+        yellow: '#d29922',
+        blue: '#58a6ff',
+        magenta: '#bc8cff',
+        cyan: '#39d353',
+        white: '#c9d1d9',
+        brightBlack: '#484f58',
+        brightRed: '#ffa198',
+        brightGreen: '#56d364',
+        brightYellow: '#e3b341',
+        brightBlue: '#79c0ff',
+        brightMagenta: '#d2a8ff',
+        brightCyan: '#56d364',
+        brightWhite: '#f0f6fc',
+      },
+      allowTransparency: false,
+      scrollback: 500,
+      rows: 20,
+    });
+
+    term.loadAddon(fitAddon);
+    term.loadAddon(new WebLinksAddon((_event: MouseEvent, uri: string) => {
+      // Prompt links activate on plain click; external URLs need Cmd/Ctrl-click.
+      try {
+        const u = new URL(uri);
+        if (u.hostname === 'workiq.prompt') {
+          const text = u.searchParams.get('q') || '';
+          if (text && ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(new TextEncoder().encode(text + '\r'));
+          }
+          term.focus();
+          return;
+        }
+      } catch { /* not a valid URL, fall through */ }
+      if (_event.metaKey || _event.ctrlKey) {
+        window.open(uri, '_blank', 'noopener');
+      }
+    }));
+    term.open(terminalInner);
+
+    // Fit to the inner terminal box; outer container adds a 4px left/right buffer.
+    function fitWithMargin() {
+      fitAddon.fit();
+    }
+
+    // Update the fake titlebar when /title sets an OSC 0 sequence
+    const titleEl = document.querySelector('.terminal-title');
+    if (titleEl) {
+      term.onTitleChange((title) => { titleEl.textContent = title; });
+    }
+
+    // Traffic-light dot behaviors
+    const frame = container.closest('.terminal-window') as HTMLElement | null;
+    const redDot = document.querySelector('.terminal-dot.red');
+    const yellowDot = document.querySelector('.terminal-dot.yellow');
+    const greenDot = document.querySelector('.terminal-dot.green');
+
+    if (redDot) {
+      (redDot as HTMLElement).style.cursor = 'pointer';
+      redDot.addEventListener('click', () => {
+        if (ws) { ws.close(); ws = null; }
+        connected = false;
+        term.clear();
+        showOffline();
+        if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+      });
+    }
+
+    let collapsed = false;
+    if (yellowDot) {
+      (yellowDot as HTMLElement).style.cursor = 'pointer';
+      yellowDot.addEventListener('click', () => {
+        collapsed = !collapsed;
+        container!.style.display = collapsed ? 'none' : '';
+        if (offline) offline.style.display = collapsed ? 'none' : '';
+        if (!collapsed) requestAnimationFrame(() => fitWithMargin());
+      });
+    }
+
+    if (greenDot) {
+      let expanded = false;
+      (greenDot as HTMLElement).style.cursor = 'pointer';
+      greenDot.addEventListener('click', () => {
+        if (collapsed) {
+          collapsed = false;
+          container!.style.display = '';
+          if (offline) offline.style.display = '';
+        }
+        expanded = !expanded;
+        if (frame) {
+          if (expanded) {
+            frame.style.position = 'fixed';
+            frame.style.inset = '0';
+            frame.style.zIndex = '9999';
+            frame.style.borderRadius = '0';
+            frame.style.margin = '0';
+            frame.style.maxWidth = 'none';
+            container.style.height = `calc(100vh - ${frame.querySelector('.terminal-titlebar')!.getBoundingClientRect().height}px)`;
+          } else {
+            frame.style.position = '';
+            frame.style.inset = '';
+            frame.style.zIndex = '';
+            frame.style.borderRadius = '';
+            frame.style.margin = '';
+            frame.style.maxWidth = '';
+            container.style.height = '';
+          }
+        }
+        requestAnimationFrame(() => {
+          fitWithMargin();
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ cols: term.cols, rows: term.rows }));
+          }
+        });
+      });
+    }
+
+    // Defer fit until after layout is stable
+    requestAnimationFrame(() => fitWithMargin());
+
+    // Try to connect to the local REPL WebSocket
+    const wsUrl = 'ws://localhost:11435/v1/repl';
+    let ws: WebSocket | null = null;
+    let connected = false;
+    let retryDelay = 1000;  // start at 1s
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    const MAX_RETRY_DELAY = 5000; // cap at 5s so page updates quickly when server starts
+
+    function connect() {
+      try {
+        ws = new WebSocket(wsUrl);
+        ws.binaryType = 'arraybuffer';
+
+        ws.onopen = () => {
+          connected = true;
+          retryDelay = 1000; // reset backoff on success
+          if (offline) offline.hidden = true;
+          container!.style.display = '';
+          console.log('[workiq] connected to REPL at', wsUrl);
+          // Send resize immediately so the server spawns the pty at the right size.
+          fitWithMargin();
+          console.log('[workiq] terminal dimensions:', term.cols, 'x', term.rows);
+          if (term.cols > 1) {
+            ws!.send(JSON.stringify({ cols: term.cols, rows: term.rows }));
+          }
+        };
+
+        ws.onmessage = (ev) => {
+          const data = ev.data instanceof ArrayBuffer
+            ? new Uint8Array(ev.data)
+            : ev.data;
+          term.write(data);
+        };
+
+        ws.onclose = () => {
+          if (connected) {
+            // Was connected, now lost — clear terminal and reconnect
+            connected = false;
+            term.clear();
+          }
+          scheduleRetry();
+        };
+
+        ws.onerror = () => {
+          // onerror is always followed by onclose — no action needed here
+        };
+      } catch {
+        scheduleRetry();
+      }
+    }
+
+    function scheduleRetry() {
+      showOffline();
+      if (retryTimer) return; // already scheduled
+      console.log(`[workiq] REPL not available, retrying in ${retryDelay / 1000}s`);
+      retryTimer = setTimeout(() => {
+        retryTimer = null;
+        retryDelay = Math.min(retryDelay * 1.5, MAX_RETRY_DELAY);
+        connect();
+      }, retryDelay);
+    }
+
+    function showOffline() {
+      container!.style.display = 'none';
+      if (offline) offline.hidden = false;
+    }
+
+    // Forward user input to WebSocket
+    term.onData((data) => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(new TextEncoder().encode(data));
+      }
+    });
+
+    // Handle resize
+    const ro = new ResizeObserver(() => {
+      fitWithMargin();
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ cols: term.cols, rows: term.rows }));
+      }
+    });
+    ro.observe(terminalInner);
+
+    // Auto-focus: when the user starts typing anywhere on the page,
+    // focus the terminal so keystrokes go to the REPL.
+    document.addEventListener('keydown', (e) => {
+      if (!connected) return;
+      // Don't steal from inputs, textareas, or contenteditable
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return;
+      // Don't steal modifier-only combos (Cmd+T, Ctrl+L, etc.)
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      term.focus();
+    });
+
+    // Prevent page scroll when mouse is over the terminal
+    container.addEventListener('wheel', (e) => { e.preventDefault(); }, { passive: false });
+
+    // When terminal gets focus, scroll the frame into view:
+    // show top of frame if it fits, otherwise anchor the bottom.
+    if (frame) {
+      container.addEventListener('mousedown', () => {
+        const rect = frame.getBoundingClientRect();
+        if (rect.height <= window.innerHeight) {
+          // Whole frame fits — show the top
+          frame.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else {
+          // Frame taller than viewport — anchor the bottom
+          frame.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+      });
+    }
+
+    connect();
+  }
+
+  // Only init on index page
+  if (document.querySelector('.hero-landing')) {
+    initTerminal();
+  }
 </script>

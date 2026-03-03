@@ -69,9 +69,9 @@ func newMCPBackend(cmdParts []string) (*mcpBackend, *exec.Cmd, error) {
 
 	// MCP handshake.
 	b.send("initialize", map[string]interface{}{
-		"protocolVersion": "2024-11-05",
+		"protocolVersion": MCPProtocol,
 		"capabilities":    map[string]interface{}{},
-		"clientInfo":      map[string]string{"name": "workiq-proxy", "version": "0.1.0"},
+		"clientInfo":      map[string]string{"name": appName, "version": Version},
 	})
 	if _, ok := b.waitResponse(); !ok {
 		_ = child.Process.Kill()
@@ -168,57 +168,72 @@ func initAPILog() {
 		TimeFormat:      time.TimeOnly,
 		Prefix:          "api",
 	})
+	initDiskLog()
 }
 
 func runServe(cmdParts []string, port int) {
 	initAPILog()
 	backend, child, err := newMCPBackend(cmdParts)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "workiq-proxy: %v\n", err)
-		os.Exit(1)
+		errBackendStart().detail(err).Die()
 	}
 	defer func() {
 		_ = backend.childIn.Close()
-		_ = child.Wait()
+		// child.Wait() is owned by watchChild — do not call it twice.
 	}()
+
+	// Watch for unexpected backend death.
+	go watchChild(child)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
 		handleChatCompletions(w, r, backend)
 	})
 	mux.HandleFunc("/v1/models", handleModels)
+	mux.HandleFunc("/v1/repl", handleRepl)
 	mux.HandleFunc("/", handleNotFound)
 
 	handler := loggingMiddleware(corsMiddleware(mux))
 
-	addr := listenAddr(port)
+	ln := findListener(port)
+	addr := ln.Addr().String()
 	fmt.Fprintf(os.Stderr, "workiq-proxy serving OpenAI-compatible API at http://%s\n", addr)
-	fmt.Fprintf(os.Stderr, "POST /v1/chat/completions   GET /v1/models\n")
+	fmt.Fprintf(os.Stderr, "POST /v1/chat/completions   GET /v1/models   WS /v1/repl\n")
 	fmt.Fprintf(os.Stderr, "Press Ctrl-C to stop.\n")
 
 	srv := &http.Server{
-		Addr:              addr,
 		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
-	if err := srv.ListenAndServe(); err != nil {
-		fmt.Fprintf(os.Stderr, "workiq-proxy: %v\n", err)
+	if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
+		errServerStopped().detail(err).Die()
 	}
 }
 
-// listenAddr tries the requested port, then seeks upward until it finds
-// an available one (up to 10 attempts).
-func listenAddr(port int) string {
+// findListener tries the requested port, then seeks upward until it
+// finds an available one (up to 10 attempts). Returns the open listener
+// so the caller can pass it directly to http.Server.Serve.
+func findListener(port int) net.Listener {
 	for i := 0; i < 10; i++ {
 		addr := fmt.Sprintf("127.0.0.1:%d", port+i)
 		ln, err := net.Listen("tcp", addr)
 		if err == nil {
-			_ = ln.Close()
-			return addr
+			return ln
 		}
 	}
 	// Fall back to OS-assigned port.
-	return "127.0.0.1:0"
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		errPortUnavailable().Die()
+	}
+	return ln
+}
+
+// watchChild monitors the MCP backend child process. If it exits
+// unexpectedly, we print a human-friendly message and shut down.
+func watchChild(child *exec.Cmd) {
+	err := child.Wait()
+	errBackendDied(err).Die()
 }
 
 // ── Handlers ────────────────────────────────────────────────────────
@@ -228,6 +243,9 @@ func handleChatCompletions(w http.ResponseWriter, r *http.Request, backend *mcpB
 		writeOpenAIError(w, http.StatusMethodNotAllowed, "only POST is supported")
 		return
 	}
+
+	// Cap request body at 1 MB to prevent memory exhaustion.
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 
 	var req ChatCompletionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -344,10 +362,25 @@ func writeSSE(w http.ResponseWriter, v interface{}) {
 	_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
 }
 
+// isLocalOrigin returns true if the origin is a localhost URL.
+func isLocalOrigin(origin string) bool {
+	return strings.HasPrefix(origin, "http://localhost:") ||
+		strings.HasPrefix(origin, "http://localhost/") ||
+		strings.HasPrefix(origin, "http://127.0.0.1:") ||
+		strings.HasPrefix(origin, "http://127.0.0.1/") ||
+		origin == "http://localhost" ||
+		origin == "http://127.0.0.1"
+}
+
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
 		if origin == "" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		if !isLocalOrigin(origin) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -383,6 +416,14 @@ func (sr *statusRecorder) Flush() {
 	}
 }
 
+// Hijack exposes the underlying connection for WebSocket upgrades.
+func (sr *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if h, ok := sr.ResponseWriter.(http.Hijacker); ok {
+		return h.Hijack()
+	}
+	return nil, nil, fmt.Errorf("upstream ResponseWriter does not implement http.Hijacker")
+}
+
 var reqCounter atomic.Int64
 
 func loggingMiddleware(next http.Handler) http.Handler {
@@ -396,6 +437,10 @@ func loggingMiddleware(next http.Handler) http.Handler {
 		tag := fmt.Sprintf("#%d", id)
 
 		apiLog.Info(tag+" → "+r.Method, "path", r.URL.Path)
+		diskInfo("http-request",
+			"id", id,
+			"method", r.Method,
+			"path", r.URL.Path)
 
 		start := time.Now()
 		rec := &statusRecorder{ResponseWriter: w, status: 200}
@@ -408,14 +453,26 @@ func loggingMiddleware(next http.Handler) http.Handler {
 			apiLog.Error(tag+" ←",
 				"status", status,
 				"duration", duration.Round(time.Millisecond))
+			diskError("http-response",
+				"id", id,
+				"status", status,
+				"duration_ms", duration.Milliseconds())
 		case status >= 400:
 			apiLog.Warn(tag+" ←",
 				"status", status,
 				"duration", duration.Round(time.Millisecond))
+			diskWarn("http-response",
+				"id", id,
+				"status", status,
+				"duration_ms", duration.Milliseconds())
 		default:
 			apiLog.Info(tag+" ←",
 				"status", status,
 				"duration", duration.Round(time.Millisecond))
+			diskInfo("http-response",
+				"id", id,
+				"status", status,
+				"duration_ms", duration.Milliseconds())
 		}
 	})
 }

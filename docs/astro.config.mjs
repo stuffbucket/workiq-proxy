@@ -43,6 +43,7 @@ export default defineConfig({
       tableOfContents: { minHeadingLevel: 2, maxHeadingLevel: 4 },
       customCss: [
         '@fontsource-variable/inter',
+        'xterm/css/xterm.css',
         './src/styles/custom.css',
       ],
       components: {

@@ -7,16 +7,30 @@ import (
 	"os"
 	"strings"
 	"unicode"
+
+	"golang.org/x/term"
 )
 
 //go:embed banner.txt
 var banner string
 
+//go:embed banner-short.txt
+var bannerShort string
+
+//go:embed banner-shorter.txt
+var bannerShorter string
+
+const bannerWidth = 125       // visible columns in banner.txt
+const bannerShortWidth = 95   // visible columns in banner-short.txt
+const bannerShorterWidth = 32 // visible columns in banner-shorter.txt
+
+// Flag variables exist so flag.Parse() can capture CLI values.
+// Runtime code reads from cfg (populated by loadConfig).
 var (
-	workiqCmd = flag.String("workiq-cmd", "npx -y @microsoft/workiq", "Base command to reach the Work IQ CLI")
-	logFile   = flag.String("log-file", "", "Override log file path (default: ~/.work-iq-cli/mcp-traffic.log)")
-	noLog     = flag.Bool("no-log", false, "Disable traffic logging")
-	servePort = flag.Int("port", 11435, "Port for serve mode (seeks next available if busy)")
+	_ = flag.String("workiq-cmd", DefaultWorkiqCmd, "Base command to reach the Work IQ CLI")
+	_ = flag.String("log-file", "", "Override log file path (default: $XDG_STATE_HOME/workiq-proxy/workiq-proxy.log)")
+	_ = flag.Bool("no-log", false, "Disable traffic logging")
+	_ = flag.Int("port", DefaultPort, "Port for serve mode (seeks next available if busy)")
 )
 
 func isTerminal() bool {
@@ -33,13 +47,16 @@ func main() {
 		os.Exit(0)
 	}
 	flag.Parse()
+	loadConfig()
 
 	tty := isTerminal()
 
-	cmdParts := splitFields(*workiqCmd)
+	cmdParts := splitFields(cfg.WorkiqCmd)
 	if len(cmdParts) == 0 {
-		fmt.Fprintln(os.Stderr, "workiq-proxy: --workiq-cmd cannot be empty")
-		os.Exit(1)
+		uerr("The --workiq-cmd flag cannot be empty.").
+			because("workiq-proxy needs a command to reach the Work IQ CLI.").
+			fix("Use the default or provide the path: --workiq-cmd /path/to/workiq").
+			Die()
 	}
 
 	trailing := flag.Args()
@@ -61,13 +78,54 @@ func main() {
 	// serve: OpenAI-compatible HTTP API.
 	if len(trailing) > 0 && trailing[0] == "serve" {
 		cmdParts = append(cmdParts, "mcp")
-		runServe(cmdParts, *servePort)
+		runServe(cmdParts, cfg.Port)
+		return
+	}
+
+	// web: serve + browser-based xterm UI.
+	if len(trailing) > 0 && trailing[0] == "web" {
+		cmdParts = append(cmdParts, "mcp")
+		runWeb(cmdParts, cfg.Port)
+		return
+	}
+
+	// install: set up integrations.
+	if len(trailing) > 0 && trailing[0] == "install" {
+		if len(trailing) < 2 {
+			uerr("Missing install target.").
+				because("The install command needs to know which tool to register with.").
+				fix("Usage: workiq-proxy install <claude|copilot>").
+				Die()
+		}
+		switch trailing[1] {
+		case "claude", "claude-code":
+			runInstallClaudeCode()
+		case "copilot", "copilot-cli":
+			runInstallCopilot()
+		default:
+			uerr("Unknown install target: " + trailing[1]).
+				because("workiq-proxy only supports specific install targets.").
+				fix("Available targets: claude, copilot").
+				Die()
+		}
+		return
+	}
+
+	// version: show component versions.
+	if len(trailing) > 0 && trailing[0] == "version" {
+		printVersions()
+		return
+	}
+
+	// licenses: print project license and third-party disclosures.
+	if len(trailing) > 0 && trailing[0] == "licenses" {
+		printLicenses()
 		return
 	}
 
 	// help: show usage and exit.
 	if len(trailing) > 0 && trailing[0] == "help" {
-		printUsage()
+		printHelp()
 		return
 	}
 
@@ -101,6 +159,20 @@ func main() {
 	runProxy(cmdParts, false)
 }
 
+func printBanner() {
+	w, _, err := term.GetSize(int(os.Stderr.Fd()))
+	switch {
+	case err != nil || w >= bannerWidth:
+		fmt.Fprint(os.Stderr, banner)
+	case w >= bannerShortWidth:
+		fmt.Fprint(os.Stderr, bannerShort)
+	case w >= bannerShorterWidth:
+		fmt.Fprint(os.Stderr, bannerShorter)
+	default:
+		fmt.Fprintln(os.Stderr, "workiq-proxy")
+	}
+}
+
 // splitFields splits s on whitespace like strings.Fields but respects
 // double-quoted segments. This handles Windows paths with spaces
 // (e.g. `"C:\Program Files\nodejs\node.exe" "C:\path\to\workiq.js"`).
@@ -125,22 +197,4 @@ func splitFields(s string) []string {
 		parts = append(parts, buf.String())
 	}
 	return parts
-}
-
-func printUsage() {
-	fmt.Fprint(os.Stderr, banner)
-	fmt.Fprintln(os.Stderr, "")
-	fmt.Fprintln(os.Stderr, "Usage: workiq-proxy [command] [args...]")
-	fmt.Fprintln(os.Stderr, "")
-	fmt.Fprintln(os.Stderr, "Commands:")
-	fmt.Fprintln(os.Stderr, "  accept-eula    Accept the Work IQ EULA")
-	fmt.Fprintln(os.Stderr, "  ask -q \"...\"   Ask Microsoft 365 Copilot a question")
-	fmt.Fprintln(os.Stderr, "  mcp            Start MCP proxy server (stdio)")
-	fmt.Fprintln(os.Stderr, "  serve          Start OpenAI-compatible HTTP API (localhost)")
-	fmt.Fprintln(os.Stderr, "  json           Interactive JSON-RPC testing mode")
-	fmt.Fprintln(os.Stderr, "  version        Show workiq CLI version")
-	fmt.Fprintln(os.Stderr, "  help           Show this help")
-	fmt.Fprintln(os.Stderr, "")
-	fmt.Fprintln(os.Stderr, "Run with no arguments in a terminal for interactive REPL.")
-	fmt.Fprintln(os.Stderr, "MCP clients launch this command with piped stdio (no TTY).")
 }

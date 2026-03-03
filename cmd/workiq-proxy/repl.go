@@ -15,6 +15,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
+	"golang.org/x/term"
 )
 
 // spinnerModel is a minimal Bubble Tea model that shows a spinner on stderr.
@@ -95,12 +96,54 @@ var (
 
 	toolDescStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("248"))
+
+	// Gradient stops matching the docs site: --wiq-gradient-1/2/3.
+	gradientStops = [][3]uint8{
+		{96, 165, 250},  // #60a5fa — blue
+		{167, 139, 250}, // #a78bfa — purple
+		{34, 211, 238},  // #22d3ee — cyan
+	}
 )
 
+// gradientText renders s in bold with a 3-stop 24-bit color gradient.
+func gradientText(s string) string {
+	runes := []rune(s)
+	n := len(runes)
+	if n == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("\033[1m") // bold on
+	for i, r := range runes {
+		t := float64(i) / float64(max(n-1, 1))
+		// Map t across two segments: [0,0.5] = stop 0→1, [0.5,1] = stop 1→2.
+		var seg int
+		var local float64
+		if t < 0.5 {
+			seg = 0
+			local = t * 2
+		} else {
+			seg = 1
+			local = (t - 0.5) * 2
+		}
+		c0, c1 := gradientStops[seg], gradientStops[seg+1]
+		ri := c0[0] + uint8(float64(int(c1[0])-int(c0[0]))*local)
+		gi := c0[1] + uint8(float64(int(c1[1])-int(c0[1]))*local)
+		bi := c0[2] + uint8(float64(int(c1[2])-int(c0[2]))*local)
+		fmt.Fprintf(&b, "\033[38;2;%d;%d;%dm%c", ri, gi, bi, r)
+	}
+	b.WriteString("\033[0m") // reset
+	return b.String()
+}
+
 func newMarkdownRenderer() *glamour.TermRenderer {
+	width := 100
+	if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w > 0 {
+		width = w
+	}
 	r, err := glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),
-		glamour.WithWordWrap(100),
+		glamour.WithWordWrap(width),
 	)
 	if err != nil {
 		return nil
@@ -108,30 +151,35 @@ func newMarkdownRenderer() *glamour.TermRenderer {
 	return r
 }
 
-func printHelp() {
-	cmds := []struct{ cmd, desc string }{
-		{"/ask <question>", "Ask Microsoft 365 Copilot a question"},
-		{"/emails [opts]", "Search emails (from: subject: date:)"},
-		{"/docs [opts]", "Search documents (name: site: type:)"},
-		{"/chats [opts]", "Search chats (with: date:)"},
-		{"/channels [opts]", "Search channels (team: channel: date:)"},
-		{"/meetings [opts]", "Search meetings (by: subject: date:)"},
-		{"/people [opts]", "Search people (name: dept: project:)"},
-		{"", ""},
-		{"/accept-eula", "Accept the Work IQ EULA"},
-		{"/tools", "List available MCP tools"},
-		{"/help", "Show this help"},
-		{"/quit", "Exit"},
+func printReplHelp() {
+	// Build display rows from slashCommands — the single source of truth.
+	var rows [][2]string
+	for _, sc := range slashCommands {
+		if sc.name == "/accept-eula" {
+			rows = append(rows, [2]string{}) // separator between search and utility commands
+		}
+		left := sc.name
+		if sc.argHint != "" {
+			left += " " + sc.argHint
+		}
+		rows = append(rows, [2]string{left, sc.desc})
 	}
+
 	fmt.Fprintln(os.Stderr, "")
-	for _, c := range cmds {
-		if c.cmd == "" {
+	width := 0
+	for _, r := range rows {
+		if n := len(r[0]); n > width {
+			width = n
+		}
+	}
+	for _, r := range rows {
+		if r[0] == "" && r[1] == "" {
 			fmt.Fprintln(os.Stderr, "")
 			continue
 		}
 		fmt.Fprintf(os.Stderr, "  %s  %s\n",
-			cmdStyle.Render(fmt.Sprintf("%-20s", c.cmd)),
-			descStyle.Render(c.desc))
+			cmdStyle.Render(fmt.Sprintf("%-*s", width, r[0])),
+			descStyle.Render(r[1]))
 	}
 	fmt.Fprintln(os.Stderr, "")
 	fmt.Fprintln(os.Stderr, subtleStyle.Render("  Type / for commands, or just type a question."))
@@ -145,8 +193,7 @@ func printHelp() {
 func runRepl(cmdParts []string) {
 	cmdPath, err := exec.LookPath(cmdParts[0])
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "workiq-proxy: cannot find %q: %v\n", cmdParts[0], err)
-		os.Exit(1)
+		errCLINotFound(cmdParts[0]).Die()
 	}
 
 	child := exec.Command(cmdPath, cmdParts[1:]...)
@@ -154,18 +201,15 @@ func runRepl(cmdParts []string) {
 
 	childIn, err := child.StdinPipe()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "workiq-proxy: stdin pipe: %v\n", err)
-		os.Exit(1)
+		errBackendStart().detail(err).Die()
 	}
 	childOut, err := child.StdoutPipe()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "workiq-proxy: stdout pipe: %v\n", err)
-		os.Exit(1)
+		errBackendStart().detail(err).Die()
 	}
 
 	if err := child.Start(); err != nil {
-		fmt.Fprintf(os.Stderr, "workiq-proxy: failed to start %q: %v\n", strings.Join(cmdParts, " "), err)
-		os.Exit(1)
+		errBackendStart().detail(err).Die()
 	}
 
 	// Response channel — scanner goroutine pushes parsed messages here.
@@ -231,22 +275,31 @@ func runRepl(cmdParts []string) {
 
 	// MCP handshake.
 	send("initialize", map[string]interface{}{
-		"protocolVersion": "2024-11-05",
+		"protocolVersion": MCPProtocol,
 		"capabilities":    map[string]interface{}{},
-		"clientInfo":      map[string]string{"name": "workiq-proxy", "version": "0.1.0"},
+		"clientInfo":      map[string]string{"name": appName, "version": Version},
 	})
 	if _, ok := waitResponse(); !ok {
-		fmt.Fprintln(os.Stderr, "workiq-proxy: server did not respond to initialize")
-		os.Exit(1)
+		errBackendNoResponse().Die()
 	}
 	sendNotification("notifications/initialized")
 
-	mdRenderer := newMarkdownRenderer()
-
-	fmt.Fprint(os.Stderr, banner)
+	printBanner()
+	examples := []string{
+		"Is anyone waiting on me to get back to them?",
+		"Do I have a meeting coming up soon?",
+		"Find 30 minutes today to block off for focus time",
+	}
 	fmt.Fprintln(os.Stderr, "")
-	fmt.Fprintln(os.Stderr, subtleStyle.Render("workiq-proxy interactive mode"))
-	printHelp()
+	fmt.Fprintln(os.Stderr, subtleStyle.Render("  Try something like:"))
+	for _, ex := range examples {
+		// OSC8 hyperlink: \e]8;;URI\e\\ visible text \e]8;;\e\\
+		fmt.Fprintf(os.Stderr, "    • \x1b]8;;https://workiq.prompt/?q=%s\x1b\\%s\x1b]8;;\x1b\\\n",
+			url.QueryEscape(ex), gradientText(ex))
+	}
+	fmt.Fprintln(os.Stderr, "")
+	fmt.Fprintln(os.Stderr, subtleStyle.Render("  /help for commands"))
+	fmt.Fprintln(os.Stderr, "")
 
 	askQuestion := func(question string) {
 		send("tools/call", toolCallParams{
@@ -254,7 +307,7 @@ func runRepl(cmdParts []string) {
 			Arguments: mustMarshal(map[string]string{"question": question}),
 		})
 		if resp, ok := waitResponse(); ok {
-			printReplResult(resp, mdRenderer)
+			printReplResult(resp, newMarkdownRenderer())
 		}
 	}
 
@@ -293,7 +346,7 @@ func runRepl(cmdParts []string) {
 				Arguments: mustMarshal(map[string]string{"eulaUrl": "https://github.com/microsoft/work-iq-mcp"}),
 			})
 			if resp, ok := waitResponse(); ok {
-				printReplResult(resp, mdRenderer)
+				printReplResult(resp, newMarkdownRenderer())
 			}
 
 		case "tools":
@@ -305,8 +358,16 @@ func runRepl(cmdParts []string) {
 				printToolsList(resp)
 			}
 
+		case "title":
+			if arg == "" {
+				fmt.Fprintln(os.Stderr, errorStyle.Render("Usage: /title <name>"))
+			} else {
+				// OSC 0: set window/tab title (works in terminals and xterm.js).
+				fmt.Fprintf(os.Stderr, "\033]0;%s\007", arg)
+			}
+
 		case "help", "?":
-			printHelp()
+			printReplHelp()
 
 		case "quit", "exit", "q":
 			quit = true
@@ -483,14 +544,14 @@ func printReplResult(msg rpcMessage, r *glamour.TermRenderer) {
 	}
 	if result.IsError {
 		for _, c := range result.Content {
-			if c.Type == "text" {
+			if c.Type == contentTypeText {
 				fmt.Fprintln(os.Stderr, errorStyle.Render(c.Text))
 			}
 		}
 		return
 	}
 	for _, c := range result.Content {
-		if c.Type == "text" {
+		if c.Type == contentTypeText {
 			fmt.Print(renderText(c.Text, r))
 		}
 	}

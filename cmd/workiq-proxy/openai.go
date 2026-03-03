@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"sync/atomic"
 	"time"
 )
 
@@ -83,13 +84,18 @@ type OpenAIErrorDetail struct {
 	Code    *string `json:"code"`
 }
 
+// contentTypeText is the MCP content item type for plain text.
+const contentTypeText = "text"
+
+// finishReasonStop is the OpenAI finish_reason for a completed response.
+const finishReasonStop = "stop"
+
 // ── Builders ────────────────────────────────────────────────────────
 
-var chatIDCounter int
+var chatIDCounter atomic.Int64
 
 func nextChatID() string {
-	chatIDCounter++
-	return fmt.Sprintf("chatcmpl-%d", chatIDCounter)
+	return fmt.Sprintf("chatcmpl-%d", chatIDCounter.Add(1))
 }
 
 func buildChatCompletion(model, content string) ChatCompletion {
@@ -101,7 +107,7 @@ func buildChatCompletion(model, content string) ChatCompletion {
 		Choices: []ChatChoice{{
 			Index:        0,
 			Message:      ChatMessage{Role: "assistant", Content: content},
-			FinishReason: "stop",
+			FinishReason: finishReasonStop,
 		}},
 		Usage: ChatUsage{}, // MCP doesn't provide token counts
 	}
@@ -113,7 +119,7 @@ func buildChatChunk(id, model, content string, done bool) ChatCompletionChunk {
 		Delta: ChatMessage{Role: "assistant", Content: content},
 	}
 	if done {
-		reason := "stop"
+		reason := finishReasonStop
 		choice.FinishReason = &reason
 		choice.Delta = ChatMessage{}
 	}
@@ -166,7 +172,7 @@ func extractTextContent(result json.RawMessage) (string, bool) {
 	if r.IsError {
 		var parts []string
 		for _, c := range r.Content {
-			if c.Type == "text" {
+			if c.Type == contentTypeText {
 				parts = append(parts, c.Text)
 			}
 		}
@@ -174,7 +180,7 @@ func extractTextContent(result json.RawMessage) (string, bool) {
 	}
 	var parts []string
 	for _, c := range r.Content {
-		if c.Type == "text" {
+		if c.Type == contentTypeText {
 			parts = append(parts, c.Text)
 		}
 	}
