@@ -6,7 +6,7 @@ sidebar:
   order: 4
 ---
 
-workiq-proxy includes a `serve` mode that exposes an OpenAI-compatible Chat Completions API. Any tool that speaks the OpenAI protocol can query your M365 data.
+If your tool speaks the OpenAI Chat Completions protocol, you can query your M365 data without configuring MCP at all. The `serve` mode runs a local HTTP server that any OpenAI-compatible client can talk to.
 
 ## Start the server
 

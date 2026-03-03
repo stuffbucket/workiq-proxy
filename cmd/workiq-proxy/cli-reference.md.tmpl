@@ -1,0 +1,78 @@
+---
+# AUTO-GENERATED — do not edit by hand.
+# Run "make docs" or "go generate ./cmd/workiq-proxy/" to regenerate.
+title: CLI Reference
+description: All commands, flags, and REPL slash commands for workiq-proxy.
+sidebar:
+  order: 10
+---
+
+## Subcommands
+
+| Command | Description |
+|---------|-------------|
+{{ range .Commands -}}
+| `{{ index . 0 }}` | {{ index . 1 }} |
+{{ end }}
+## Quick Start
+
+These are the commands most people need:
+
+| Command | Description |
+|---------|-------------|
+{{ range .Friendly -}}
+| `{{ index . 0 }}` | {{ index . 1 }} |
+{{ end }}
+## Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+{{ range .Flags -}}
+| `--{{ .Name }}` | {{ .Default }} | {{ .Usage }} |
+{{ end }}
+## REPL Slash Commands
+
+When running in interactive mode (no arguments), these slash commands are available:
+
+| Command | Description |
+|---------|-------------|
+{{ range .Slash -}}
+| `{{ .Name }}` | {{ .Desc }} |
+{{ end }}
+## Modes of Operation
+
+| Condition | Behavior |
+|-----------|----------|
+| No arguments, interactive terminal | Launches the interactive REPL |
+| No arguments, piped stdin (no TTY) | MCP proxy mode (how MCP clients invoke it) |
+| `mcp` subcommand | MCP proxy mode (explicit) |
+| `serve` subcommand | OpenAI-compatible HTTP API on localhost |
+| `web` subcommand | Browser-based terminal UI |
+| `json` subcommand | Interactive JSON-RPC testing |
+| Any other arguments | Passed through to the Work IQ CLI |
+
+## Examples
+
+### Use a globally installed Work IQ binary
+
+```bash
+workiq-proxy --workiq-cmd workiq
+```
+
+### Disable logging
+
+```bash
+workiq-proxy --no-log
+```
+
+### Custom log location
+
+```bash
+workiq-proxy --log-file /tmp/workiq-debug.log
+```
+
+### Serve on a specific port
+
+```bash
+workiq-proxy serve --port 9000
+```

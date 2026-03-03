@@ -217,6 +217,14 @@ func buildQuestion(toolName string, args json.RawMessage) string {
 		if v := params["keywords"]; v != "" {
 			parts = append(parts, "for "+v)
 		}
+	default:
+		// Unknown synthetic tool — pass through arguments as a best-effort question.
+		parts = append(parts, toolName)
+		for k, v := range params {
+			if v != "" {
+				parts = append(parts, k+": "+v)
+			}
+		}
 	}
 	if len(parts) == 1 {
 		parts = append(parts, "recent items")

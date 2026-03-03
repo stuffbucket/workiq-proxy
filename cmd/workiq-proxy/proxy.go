@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -79,7 +80,8 @@ func runProxy(cmdParts []string, tty bool) {
 
 	exitCode := 1
 	if err := child.Wait(); err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
 			exitCode = exitErr.ExitCode()
 		}
 	} else {
@@ -196,7 +198,8 @@ func runPassthrough(cmdParts []string) {
 	child.Stdout = os.Stdout
 	child.Stderr = os.Stderr
 	if err := child.Run(); err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
 			os.Exit(exitErr.ExitCode())
 		}
 		os.Exit(1)

@@ -95,7 +95,7 @@ func enrichToolCallResult(raw json.RawMessage) json.RawMessage {
 	}
 	items := make([]contentItem, 0, len(existing2)+1)
 	items = append(items, existing2...)
-	items = append(items, contentItem{Type: "text", Text: hint})
+	items = append(items, contentItem{Type: contentTypeText, Text: hint})
 	m["content"], _ = json.Marshal(items)
 	out, _ := json.Marshal(m)
 	return out

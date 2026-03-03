@@ -1,0 +1,26 @@
+---
+# AUTO-GENERATED — do not edit by hand.
+# Run "make docs" or "go generate ./cmd/workiq-proxy/" to regenerate.
+title: Error Messages
+description: Documented error messages from workiq-proxy, with explanations and fixes.
+sidebar:
+  order: 11
+---
+
+workiq-proxy uses structured error messages that explain **what happened**,
+**why it matters**, and **what to do next**.
+
+{{ range .Errors -}}
+## {{ .What }}
+
+{{ if .Why -}}
+**Why:** {{ .Why }}
+
+{{ end -}}
+{{ if .Fix -}}
+**Fix:** {{ .Fix }}
+
+{{ end -}}
+---
+
+{{ end -}}

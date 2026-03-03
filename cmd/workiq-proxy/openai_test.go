@@ -221,7 +221,7 @@ func TestChatCompletionsNoUserMessage(t *testing.T) {
 
 func TestCORSPreflight(t *testing.T) {
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(200)
+		w.WriteHeader(http.StatusOK)
 	})
 	handler := corsMiddleware(inner)
 
@@ -245,7 +245,7 @@ func TestCORSNoOrigin(t *testing.T) {
 	called := false
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
-		w.WriteHeader(200)
+		w.WriteHeader(http.StatusOK)
 	})
 	handler := corsMiddleware(inner)
 
@@ -263,17 +263,33 @@ func TestCORSNoOrigin(t *testing.T) {
 
 func TestCORSWithOrigin(t *testing.T) {
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(200)
+		w.WriteHeader(http.StatusOK)
 	})
 	handler := corsMiddleware(inner)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
-	req.Header.Set("Origin", "http://example.com")
+	req.Header.Set("Origin", "http://localhost:3000")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
-	if v := w.Header().Get("Access-Control-Allow-Origin"); v != "http://example.com" {
-		t.Errorf("allow-origin = %q, want http://example.com", v)
+	if v := w.Header().Get("Access-Control-Allow-Origin"); v != "http://localhost:3000" {
+		t.Errorf("allow-origin = %q, want http://localhost:3000", v)
+	}
+}
+
+func TestCORSRejectsNonLocalOrigin(t *testing.T) {
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := corsMiddleware(inner)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	req.Header.Set("Origin", "http://evil.com")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if v := w.Header().Get("Access-Control-Allow-Origin"); v != "" {
+		t.Errorf("expected no allow-origin for non-local origin, got %q", v)
 	}
 }
 
@@ -296,21 +312,21 @@ func TestWriteSSE(t *testing.T) {
 
 func TestStatusRecorder(t *testing.T) {
 	w := httptest.NewRecorder()
-	rec := &statusRecorder{ResponseWriter: w, status: 200}
+	rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 
-	rec.WriteHeader(404)
-	if rec.status != 404 {
-		t.Errorf("status = %d, want 404", rec.status)
+	rec.WriteHeader(http.StatusNotFound)
+	if rec.status != http.StatusNotFound {
+		t.Errorf("status = %d, want %d", rec.status, http.StatusNotFound)
 	}
-	if w.Code != 404 {
-		t.Errorf("underlying status = %d, want 404", w.Code)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("underlying status = %d, want %d", w.Code, http.StatusNotFound)
 	}
 }
 
 func TestLoggingMiddleware(t *testing.T) {
 	initAPILog()
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(201)
+		w.WriteHeader(http.StatusCreated)
 	})
 	handler := loggingMiddleware(inner)
 
@@ -318,7 +334,7 @@ func TestLoggingMiddleware(t *testing.T) {
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
-	if w.Code != 201 {
+	if w.Code != http.StatusCreated {
 		t.Errorf("status = %d, want 201", w.Code)
 	}
 }
@@ -326,7 +342,7 @@ func TestLoggingMiddleware(t *testing.T) {
 func TestLoggingMiddlewareRequestIDs(t *testing.T) {
 	initAPILog()
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(200)
+		w.WriteHeader(http.StatusOK)
 	})
 	handler := loggingMiddleware(inner)
 

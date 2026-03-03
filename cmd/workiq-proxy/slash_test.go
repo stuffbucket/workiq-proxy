@@ -38,23 +38,17 @@ func TestSlashMenuAppearsOnSlash(t *testing.T) {
 func TestSlashMenuFilters(t *testing.T) {
 	history := []string{}
 	m := newPromptModel(&history)
-	m = sendRunes(m, "/a")
+	m = sendRunes(m, "/e")
 
 	if !m.showMenu {
-		t.Fatal("expected menu after /a")
+		t.Fatal("expected menu after /e")
 	}
-	// Should match /ask and /accept-eula
-	if len(m.matches) != 2 {
-		t.Fatalf("expected 2 matches for /a, got %d", len(m.matches))
-	}
-
-	m = sendRunes(m, "s")
-	// Now "/as" → only /ask
+	// Should match /emails
 	if len(m.matches) != 1 {
-		t.Fatalf("expected 1 match for /as, got %d", len(m.matches))
+		t.Fatalf("expected 1 match for /e, got %d", len(m.matches))
 	}
-	if m.matches[0].name != "/ask" {
-		t.Errorf("expected /ask, got %s", m.matches[0].name)
+	if m.matches[0].name != "/emails" {
+		t.Errorf("expected /emails, got %s", m.matches[0].name)
 	}
 }
 
@@ -122,16 +116,16 @@ func TestTabAcceptsCompletion(t *testing.T) {
 func TestTabAcceptsCommandWithArg(t *testing.T) {
 	history := []string{}
 	m := newPromptModel(&history)
-	m = sendRunes(m, "/as")
-	// Should have /ask selected.
-	if len(m.matches) != 1 || m.matches[0].name != "/ask" {
-		t.Fatalf("expected /ask match")
+	m = sendRunes(m, "/em")
+	// Should have /emails selected.
+	if len(m.matches) != 1 || m.matches[0].name != "/emails" {
+		t.Fatalf("expected /emails match")
 	}
 
 	m = sendKey(m, tea.KeyTab)
-	// /ask has arg, so should append space and keep editing.
-	if m.input.Value() != "/ask " {
-		t.Errorf("expected input '/ask ', got %q", m.input.Value())
+	// /emails has arg, so should append space and keep editing.
+	if m.input.Value() != "/emails " {
+		t.Errorf("expected input '/emails ', got %q", m.input.Value())
 	}
 	if m.done {
 		t.Error("should not be done — waiting for arg")
@@ -351,10 +345,12 @@ func TestFilterSlashCommands(t *testing.T) {
 		want   int
 	}{
 		{"/", len(slashCommands)},
-		{"/a", 2},  // /ask, /accept-eula
-		{"/as", 1}, // /ask
+		{"/a", 1},  // /accept-eula
+		{"/as", 0}, // no match
 		{"/q", 1},  // /quit
-		{"/t", 1},  // /tools
+		{"/t", 2},  // /title, /tools
+		{"/ti", 1}, // /title
+		{"/to", 1}, // /tools
 		{"/h", 1},  // /help
 		{"/z", 0},
 	}
@@ -371,9 +367,9 @@ func TestFilterSlashCommands(t *testing.T) {
 func TestMenuHidesAfterSpace(t *testing.T) {
 	history := []string{}
 	m := newPromptModel(&history)
-	m = sendRunes(m, "/ask")
+	m = sendRunes(m, "/emails")
 	if !m.showMenu {
-		t.Fatal("menu should show for '/ask'")
+		t.Fatal("menu should show for '/emails'")
 	}
 
 	m = sendRunes(m, " ")

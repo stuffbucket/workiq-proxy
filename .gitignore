@@ -4,3 +4,7 @@ package-lock.json
 !docs/package-lock.json
 /workiq-proxy
 /workiq-proxy-*
+cmd/workiq-proxy/LICENSE
+cmd/workiq-proxy/THIRD_PARTY_DISCLOSURES.md
+npm/LICENSE
+npm/THIRD_PARTY_DISCLOSURES.md

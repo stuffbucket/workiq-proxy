@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -16,8 +15,7 @@ import (
 func runAcceptEula(cmdParts []string) {
 	cmdPath, err := exec.LookPath(cmdParts[0])
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "workiq-proxy: cannot find %q: %v\n", cmdParts[0], err)
-		os.Exit(1)
+		errCLINotFound(cmdParts[0]).Die()
 	}
 
 	child := exec.Command(cmdPath, cmdParts[1:]...)
@@ -25,18 +23,15 @@ func runAcceptEula(cmdParts []string) {
 
 	childIn, err := child.StdinPipe()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "workiq-proxy: stdin pipe: %v\n", err)
-		os.Exit(1)
+		errBackendStart().detail(err).Die()
 	}
 	childOut, err := child.StdoutPipe()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "workiq-proxy: stdout pipe: %v\n", err)
-		os.Exit(1)
+		errBackendStart().detail(err).Die()
 	}
 
 	if err := child.Start(); err != nil {
-		fmt.Fprintf(os.Stderr, "workiq-proxy: failed to start %q: %v\n", strings.Join(cmdParts, " "), err)
-		os.Exit(1)
+		errBackendStart().detail(err).Die()
 	}
 
 	scanner := bufio.NewScanner(childOut)
@@ -70,18 +65,17 @@ func runAcceptEula(cmdParts []string) {
 		ID:      &initID,
 		Method:  "initialize",
 		Params: mustMarshal(map[string]interface{}{
-			"protocolVersion": "2024-11-05",
+			"protocolVersion": MCPProtocol,
 			"capabilities":    map[string]interface{}{},
 			"clientInfo": map[string]string{
-				"name":    "workiq-proxy",
-				"version": "0.1.0",
+				"name":    appName,
+				"version": Version,
 			},
 		}),
 	})
 
 	if _, ok := waitResponse(); !ok {
-		fmt.Fprintln(os.Stderr, "workiq-proxy: no response to initialize")
-		os.Exit(1)
+		errBackendNoResponse().Die()
 	}
 
 	// Step 2: initialized notification
@@ -104,17 +98,22 @@ func runAcceptEula(cmdParts []string) {
 
 	resp, ok := waitResponse()
 	if !ok {
-		fmt.Fprintln(os.Stderr, "workiq-proxy: no response to accept_eula")
-		os.Exit(1)
+		uerr("The backend stopped before EULA acceptance completed.").
+			because("Your EULA acceptance was not saved.").
+			fix("Try running the command again: workiq-proxy accept-eula").
+			Die()
 	}
 
 	childIn.Close()
-	child.Wait()
+	_ = child.Wait()
 
 	// Print the result text for the user.
 	if resp.Error != nil {
-		fmt.Fprintf(os.Stderr, "workiq-proxy: EULA acceptance failed: %s\n", resp.Error.Message)
-		os.Exit(1)
+		uerr("EULA acceptance failed.").
+			because("You must accept the EULA before workiq-proxy can access Work IQ.").
+			fix("Accept it at: https://github.com/microsoft/work-iq-mcp").
+			detailf("%s", resp.Error.Message).
+			Die()
 	}
 
 	if resp.Result != nil {
@@ -124,7 +123,7 @@ func runAcceptEula(cmdParts []string) {
 		}
 		if err := json.Unmarshal(resp.Result, &result); err == nil {
 			for _, c := range result.Content {
-				if c.Type == "text" {
+				if c.Type == contentTypeText {
 					fmt.Fprintln(os.Stderr, c.Text)
 				}
 			}
@@ -134,8 +133,4 @@ func runAcceptEula(cmdParts []string) {
 		}
 	}
 
-	// Suppress the child's stderr about broken pipe / signal.
-	_ = child.Process.Signal(os.Kill)
-
-	io.Copy(io.Discard, childOut)
 }
