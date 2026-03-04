@@ -7,13 +7,13 @@
     "url": "https://github.com/stuffbucket/workiq-proxy",
     "source": "github"
   },
-  "version": "0.1.2",
+  "version": "0.3.1",
   "websiteUrl": "https://github.com/stuffbucket/workiq-proxy",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@stuffbucket/workiq-proxy",
-      "version": "0.1.2",
+      "version": "0.3.1",
       "transport": {
         "type": "stdio"
       },

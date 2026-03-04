@@ -11,7 +11,7 @@ import (
 // Compile-time constants — single source of truth for identity strings
 // used in MCP handshakes and user-facing output.
 const (
-	Version          = "0.1.0"
+	Version          = "0.3.1"
 	MCPProtocol      = "2024-11-05"
 	DefaultWorkiqCmd = "npx -y @microsoft/workiq"
 	DefaultPort      = 11435
