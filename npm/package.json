@@ -1,6 +1,6 @@
 {
   "name": "@stuffbucket/workiq-proxy",
-  "version": "0.3.2",
+  "version": "0.3.4",
   "description": "MCP compatibility proxy for Microsoft Work IQ",
   "bin": {
     "workiq-proxy": "run.js",
