@@ -12,7 +12,7 @@ PLATFORMS = \
 	windows/amd64/workiq-proxy-win-x64.exe \
 	windows/arm64/workiq-proxy-win-arm64.exe
 
-.PHONY: build test vet clean all setup lint lint-go lint-js audit audit-go audit-js release docs licenses
+.PHONY: build test vet clean all setup lint lint-go lint-js audit audit-go audit-js release docs licenses embed-files
 
 # ── Development setup ────────────────────────────────────────────
 
@@ -41,18 +41,23 @@ setup-hooks:
 
 lint: lint-go lint-js
 
-lint-go:
+lint-go: embed-files
 	golangci-lint run $(MODULE)
+
+# Ensure go:embed files exist in cmd/workiq-proxy/ before lint/build.
+embed-files:
+	@cp -n LICENSE cmd/workiq-proxy/LICENSE 2>/dev/null || true
+	@cp -n THIRD_PARTY_DISCLOSURES.md cmd/workiq-proxy/THIRD_PARTY_DISCLOSURES.md 2>/dev/null || true
 
 lint-js:
 	npx eslint npm/ contrib/tools/
 
 # ── Build / Test ─────────────────────────────────────────────────
 
-build: docs
+build: docs embed-files
 	go build -ldflags "$(LDFLAGS)" -o $(BINARY) $(MODULE)
 
-test:
+test: embed-files
 	go test -race -count=1 $(MODULE)
 
 vet:

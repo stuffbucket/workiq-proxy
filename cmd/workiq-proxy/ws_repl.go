@@ -177,11 +177,19 @@ func isResizeMessage(data []byte) bool {
 	return json.Unmarshal(data, &msg) == nil && msg.Cols > 0 && msg.Rows > 0
 }
 
-// parseResize extracts cols and rows from a JSON resize message.
+// parseResize extracts cols and rows from a JSON resize message,
+// clamped to reasonable terminal dimensions.
 func parseResize(data []byte) (cols, rows int) {
 	var msg resizeMessage
 	if err := json.Unmarshal(data, &msg); err != nil {
 		return 0, 0
 	}
-	return msg.Cols, msg.Rows
+	cols, rows = msg.Cols, msg.Rows
+	if cols > 500 {
+		cols = 500
+	}
+	if rows > 200 {
+		rows = 200
+	}
+	return cols, rows
 }

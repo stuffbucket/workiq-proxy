@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"runtime"
 	"time"
 )
@@ -28,7 +30,7 @@ func runWeb(cmdParts []string, port int) {
 	}()
 
 	// Watch for unexpected backend death.
-	go watchChild(child)
+	go watchChild(child, backend)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
@@ -54,6 +56,19 @@ func runWeb(cmdParts []string, port int) {
 		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
+
+	// Graceful shutdown on SIGINT/SIGTERM.
+	go func() {
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, os.Interrupt)
+		<-sigCh
+		fmt.Fprintln(os.Stderr, "\nworkiq-proxy: shutting down...")
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(ctx)
+		_ = backend.childIn.Close()
+	}()
+
 	if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
 		errServerStopped().detail(err).Die()
 	}

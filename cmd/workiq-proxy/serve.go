@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -23,6 +25,7 @@ type mcpBackend struct {
 	responses chan rpcMessage
 	mu        sync.Mutex // serialize request/response pairs
 	nextID    int
+	dead      atomic.Bool
 }
 
 func newMCPBackend(cmdParts []string) (*mcpBackend, *exec.Cmd, error) {
@@ -73,7 +76,7 @@ func newMCPBackend(cmdParts []string) (*mcpBackend, *exec.Cmd, error) {
 		"capabilities":    map[string]interface{}{},
 		"clientInfo":      map[string]string{"name": appName, "version": Version},
 	})
-	if _, ok := b.waitResponse(); !ok {
+	if _, ok := b.waitResponse(context.Background()); !ok {
 		_ = child.Process.Kill()
 		return nil, nil, fmt.Errorf("server did not respond to initialize")
 	}
@@ -103,16 +106,29 @@ func (b *mcpBackend) sendNotification(method string) {
 	_, _ = b.childIn.Write([]byte("\n"))
 }
 
-func (b *mcpBackend) waitResponse() (rpcMessage, bool) {
+// responseTimeout is how long ask() waits for the MCP backend to
+// respond before giving up. Work IQ queries can be slow, but 2 minutes
+// is well beyond any reasonable response time.
+const responseTimeout = 2 * time.Minute
+
+func (b *mcpBackend) waitResponse(ctx context.Context) (rpcMessage, bool) {
+	timer := time.NewTimer(responseTimeout)
+	defer timer.Stop()
 	for {
-		msg, ok := <-b.responses
-		if !ok {
-			return msg, false
+		select {
+		case msg, ok := <-b.responses:
+			if !ok {
+				return msg, false
+			}
+			if msg.ID == nil && msg.Method != "" {
+				continue // skip server notifications
+			}
+			return msg, true
+		case <-timer.C:
+			return rpcMessage{}, false
+		case <-ctx.Done():
+			return rpcMessage{}, false
 		}
-		if msg.ID == nil && msg.Method != "" {
-			continue // skip server notifications
-		}
-		return msg, true
 	}
 }
 
@@ -122,8 +138,14 @@ type askResult struct {
 }
 
 // ask sends a question to the MCP backend and returns the text result.
-// It is safe for concurrent callers (serialized by mu).
-func (b *mcpBackend) ask(question string) (string, error) {
+// It is safe for concurrent callers (serialized by mu). The context
+// allows callers (e.g. HTTP handlers) to abort when clients disconnect,
+// releasing the mutex so other requests aren't blocked.
+func (b *mcpBackend) ask(ctx context.Context, question string) (string, error) {
+	if b.dead.Load() {
+		return "", fmt.Errorf("MCP backend is not running")
+	}
+
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -132,8 +154,11 @@ func (b *mcpBackend) ask(question string) (string, error) {
 		Arguments: mustMarshal(map[string]string{"question": question}),
 	})
 
-	resp, ok := b.waitResponse()
+	resp, ok := b.waitResponse(ctx)
 	if !ok {
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
 		return "", fmt.Errorf("MCP backend disconnected")
 	}
 	if resp.Error != nil {
@@ -149,10 +174,10 @@ func (b *mcpBackend) ask(question string) (string, error) {
 }
 
 // askAsync runs ask in a goroutine and returns a channel for the result.
-func (b *mcpBackend) askAsync(question string) <-chan askResult {
+func (b *mcpBackend) askAsync(ctx context.Context, question string) <-chan askResult {
 	ch := make(chan askResult, 1)
 	go func() {
-		text, err := b.ask(question)
+		text, err := b.ask(ctx, question)
 		ch <- askResult{text, err}
 	}()
 	return ch
@@ -183,7 +208,7 @@ func runServe(cmdParts []string, port int) {
 	}()
 
 	// Watch for unexpected backend death.
-	go watchChild(child)
+	go watchChild(child, backend)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
@@ -205,6 +230,19 @@ func runServe(cmdParts []string, port int) {
 		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
+
+	// Graceful shutdown on SIGINT/SIGTERM.
+	go func() {
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, os.Interrupt)
+		<-sigCh
+		fmt.Fprintln(os.Stderr, "\nworkiq-proxy: shutting down...")
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(ctx)
+		_ = backend.childIn.Close()
+	}()
+
 	if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
 		errServerStopped().detail(err).Die()
 	}
@@ -230,10 +268,17 @@ func findListener(port int) net.Listener {
 }
 
 // watchChild monitors the MCP backend child process. If it exits
-// unexpectedly, we print a human-friendly message and shut down.
-func watchChild(child *exec.Cmd) {
+// unexpectedly, we mark the backend dead so in-flight and future
+// requests get clean 502 errors instead of a hard process exit.
+// The child dying is genuinely exceptional — all known workiq error
+// modes (EULA, auth, token protection) return MCP-level errors and
+// keep the process alive.
+func watchChild(child *exec.Cmd, backend *mcpBackend) {
 	err := child.Wait()
-	errBackendDied(err).Die()
+	backend.dead.Store(true)
+	e := errBackendDied(err)
+	e.Print()
+	diskError("backend-died", "err", e.Detail)
 }
 
 // ── Handlers ────────────────────────────────────────────────────────
@@ -267,7 +312,7 @@ func handleChatCompletions(w http.ResponseWriter, r *http.Request, backend *mcpB
 	// Non-streaming: blocks until MCP responds. No keep-alive bytes —
 	// writing before we know success/failure would commit a 200 status
 	// and prevent returning error codes.
-	text, err := backend.ask(question)
+	text, err := backend.ask(r.Context(), question)
 	if err != nil {
 		writeOpenAIError(w, http.StatusBadGateway, err.Error())
 		return
@@ -293,7 +338,7 @@ func handleStream(w http.ResponseWriter, r *http.Request, backend *mcpBackend, m
 	// Send SSE comments as heartbeats while the MCP backend is working.
 	// Comments (lines starting with ':') are part of the SSE spec and
 	// ignored by conforming EventSource clients, but visible in curl.
-	resultCh := backend.askAsync(question)
+	resultCh := backend.askAsync(r.Context(), question)
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
