@@ -11,7 +11,7 @@ sidebar:
 
 | Component | Version |
 |-----------|---------|
-| `workiq-proxy` | 0.3.2 |
+| `workiq-proxy` | 0.3.3 |
 | `mcp-protocol` | 2025-11-25 |
 | `go` | go1.25.7 |
 

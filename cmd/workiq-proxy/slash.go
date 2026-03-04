@@ -252,14 +252,14 @@ func (m promptModel) View() string {
 			b.WriteByte('\n')
 			c := m.matches[i]
 			if i == m.cursor {
-				b.WriteString(fmt.Sprintf("  %s %s %s",
+				fmt.Fprintf(&b, "  %s %s %s",
 					menuCursorStyle.Render("▸"),
 					menuActiveCmdStyle.Render(c.name),
-					menuActiveDescStyle.Render(c.desc)))
+					menuActiveDescStyle.Render(c.desc))
 			} else {
-				b.WriteString(fmt.Sprintf("    %s %s",
+				fmt.Fprintf(&b, "    %s %s",
 					menuDimCmdStyle.Render(c.name),
-					menuDimDescStyle.Render(c.desc)))
+					menuDimDescStyle.Render(c.desc))
 			}
 		}
 
@@ -269,8 +269,8 @@ func (m promptModel) View() string {
 		}
 
 		// Hint line
-		b.WriteString(fmt.Sprintf("\n  %s",
-			menuDimDescStyle.Render("↑↓ to navigate · tab to complete · esc to dismiss")))
+		fmt.Fprintf(&b, "\n  %s",
+			menuDimDescStyle.Render("↑↓ to navigate · tab to complete · esc to dismiss"))
 	} else {
 		// Menu not visible — emit blank lines to keep view height stable.
 		for i := 0; i < menuLines; i++ {
