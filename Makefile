@@ -119,8 +119,8 @@ release:
 ifndef v
 	$(error Usage: make release v=0.2.0)
 endif
-	@echo "==> Running full build pipeline..."
-	$(MAKE) all
+	@echo "==> Running lint and tests..."
+	$(MAKE) lint test
 	@echo "==> Tagging v$(v)..."
 	git tag v$(v)
 	@echo "==> Pushing tag v$(v) to origin..."

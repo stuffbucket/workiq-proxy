@@ -41,7 +41,6 @@ linters:
         - G115        # int-to-uint conversion (we guard with > 0 checks)
         - G204        # subprocess with variable args (we exec child processes by design)
         - G304        # file path from variable (config file reads)
-        - G705        # range over map (non-deterministic order is fine)
     misspell:
       locale: US
     exhaustive:
