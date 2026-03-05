@@ -31,6 +31,8 @@ var (
 	_ = flag.String("log-file", "", "Override log file path (default: $XDG_STATE_HOME/workiq-proxy/workiq-proxy.log)")
 	_ = flag.Bool("no-log", false, "Disable traffic logging")
 	_ = flag.Int("port", DefaultPort, "Port for serve mode (seeks next available if busy)")
+	_ = flag.Bool("json", false, "Emit JSONL to stderr instead of pretty-printed logs (serve/web modes)") //nolint:goconst // flag name
+	_ = flag.Bool("tls", false, "Enable TLS with an auto-generated self-signed certificate for localhost")
 )
 
 func isTerminal() bool {
@@ -132,7 +134,7 @@ func main() {
 	if tty {
 		switch {
 		// CLI mode: TTY + trailing args → passthrough to workiq CLI.
-		case len(trailing) > 0 && trailing[0] != "json":
+		case len(trailing) > 0 && trailing[0] != "json": //nolint:goconst // subcommand name
 			cmdParts = append(cmdParts, trailing...)
 			runPassthrough(cmdParts)
 			return

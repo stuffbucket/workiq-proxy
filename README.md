@@ -27,6 +27,20 @@ It:
 ## Install
 
 ```bash
+curl -fsSL https://stuffbucket.github.io/workiq-proxy/install.sh | sh
+```
+
+The installer detects (or installs) Node.js and sets up workiq-proxy via npm.
+
+On Windows (PowerShell):
+
+```powershell
+irm https://stuffbucket.github.io/workiq-proxy/install.ps1 | iex
+```
+
+Alternatively, install directly with npm:
+
+```bash
 npm install -g @stuffbucket/workiq-proxy
 ```
 
@@ -209,6 +223,70 @@ make lint
 # Cross-compile all platforms
 make all
 ```
+
+## Programmatic API
+
+Use workiq-proxy as a dependency to embed Work IQ in your own Node.js project:
+
+```bash
+npm install @stuffbucket/workiq-proxy
+```
+
+### Pipe-based (no port, no network)
+
+```javascript
+const { createClient } = require("@stuffbucket/workiq-proxy");
+
+const client = await createClient();
+const answer = await client.ask("What's on my calendar?");
+console.log(answer);
+
+const emails = await client.searchEmails({ from: "alice", date_range: "last week" });
+const docs   = await client.searchDocuments({ keywords: "quarterly report" });
+const chats  = await client.searchChats({ person: "bob", keywords: "standup" });
+
+await client.close();
+```
+
+`createClient()` spawns workiq-proxy over stdio pipes — no port, no HTTP. The MCP handshake happens automatically.
+
+| Method | Description |
+|--------|-------------|
+| `ask(question)` | Ask Microsoft 365 Copilot a question |
+| `searchEmails(params)` | Search emails (`from`, `subject`, `keywords`, `date_range`) |
+| `searchDocuments(params)` | Search documents (`filename`, `keywords`, `site`, `file_type`) |
+| `searchChats(params)` | Search chats (`person`, `keywords`, `date_range`, `channel`) |
+| `callTool(name, args)` | Call any MCP tool by name |
+| `listTools()` | List all available tools |
+| `close()` | Shut down the child process |
+
+Options: `createClient({ workiqCmd?, noLog? })`
+
+### HTTP server (OpenAI-compatible)
+
+If you need an HTTP API (e.g. for non-Node consumers):
+
+```javascript
+const { createServer } = require("@stuffbucket/workiq-proxy");
+
+const server = await createServer();           // starts serve --json
+const models = await server.listModels();      // /v1/models
+const reply  = await server.chat("What's on my calendar?");
+console.log(reply.choices[0].message.content);
+await server.close();
+```
+
+| Method | Description |
+|--------|-------------|
+| `server.url` | Base URL (e.g. `http://127.0.0.1:11435`) |
+| `server.listModels()` | List available models |
+| `server.chat(message)` | Send a chat message (string or full OpenAI request body) |
+| `server.chat(body, { stream: true })` | Stream SSE chunks |
+| `server.onEvent(fn)` | Subscribe to JSONL log events; returns unsubscribe function |
+| `server.events` | Array of all captured log events |
+| `server.close()` | Shut down the server |
+
+Options: `createServer({ port?, workiqCmd?, noLog? })`
 
 ## License
 

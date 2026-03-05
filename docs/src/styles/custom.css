@@ -236,6 +236,49 @@ body:has(.hero-landing) .main-frame {
   inherits: false;
 }
 
+.install-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 0;
+  margin: 1.5rem auto 0;
+}
+
+.install-tab {
+  background: var(--sl-color-gray-6);
+  color: var(--sl-color-gray-3);
+  border: 1px solid var(--sl-color-gray-5);
+  padding: 0.5rem 1.25rem;
+  font-family: var(--sl-font);
+  font-size: 0.8rem;
+  font-weight: 550;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.install-tab:first-child {
+  border-radius: 8px 0 0 8px;
+  border-right: none;
+}
+
+.install-tab:last-child {
+  border-radius: 0 8px 8px 0;
+}
+
+.install-tab.active {
+  background: var(--sl-color-gray-5);
+  color: var(--sl-color-white);
+  border-color: var(--sl-color-gray-4);
+}
+
+.install-tab:hover:not(.active) {
+  color: var(--sl-color-gray-1);
+}
+
+.install-command.hidden {
+  display: none;
+}
+
 .install-command {
   display: inline-flex;
   align-items: center;
@@ -462,90 +505,11 @@ body:has(.hero-landing) .main-frame {
   margin-right: 42px; /* offset for dots to center text */
 }
 
-#terminal-container {
-  height: 420px;
+.terminal-screenshot {
+  display: block;
   width: 100%;
-  box-sizing: border-box;
-  text-align: left;
-}
-
-#terminal-shell {
-  height: 100%;
-  width: 100%;
-  display: flex;
+  height: auto;
   background: #0d1117;
-  overflow: hidden;
-}
-
-.terminal-gutter {
-  flex: 0 0 4px;
-  background: #0d1117;
-}
-
-#terminal-inner {
-  height: 100%;
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  background: #0d1117;
-}
-
-#terminal-container .xterm {
-  height: 100%;
-  padding: 8px 0;
-  box-sizing: border-box;
-}
-
-#terminal-container .xterm-viewport {
-  background: #0d1117;
-  scrollbar-color: #30363d #0d1117;
-}
-
-#terminal-container .xterm-viewport::-webkit-scrollbar {
-  width: 10px;
-}
-
-#terminal-container .xterm-viewport::-webkit-scrollbar-track {
-  background: #0d1117;
-}
-
-#terminal-container .xterm-viewport::-webkit-scrollbar-thumb {
-  background: #30363d;
-  border-radius: 8px;
-}
-
-/* Make xterm.js hyperlinks (OSC8) show a pointer cursor + underline on hover */
-#terminal-container .xterm a {
-  cursor: pointer;
-  text-decoration: underline;
-}
-
-.terminal-offline {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 340px;
-  gap: 0.75rem;
-  color: rgba(255, 255, 255, 0.4);
-  font-size: 0.875rem;
-}
-
-.terminal-offline[hidden] {
-  display: none;
-}
-
-.terminal-offline p {
-  margin: 0;
-}
-
-.terminal-offline code {
-  font-family: var(--sl-font-mono);
-  font-size: 0.8rem;
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.6);
-  padding: 0.4rem 0.8rem;
-  border-radius: 6px;
 }
 
 /* ── Quick-start steps ──────────────────────────────────────── */

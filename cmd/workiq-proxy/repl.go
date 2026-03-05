@@ -545,14 +545,14 @@ func printReplResult(msg rpcMessage, r *glamour.TermRenderer) {
 	if result.IsError {
 		for _, c := range result.Content {
 			if c.Type == contentTypeText {
-				fmt.Fprintln(os.Stderr, errorStyle.Render(c.Text))
+				fmt.Fprintln(os.Stderr, errorStyle.Render(unwrapResponseText(c.Text)))
 			}
 		}
 		return
 	}
 	for _, c := range result.Content {
 		if c.Type == contentTypeText {
-			fmt.Print(renderText(c.Text, r))
+			fmt.Print(renderText(unwrapResponseText(c.Text), r))
 		}
 	}
 }

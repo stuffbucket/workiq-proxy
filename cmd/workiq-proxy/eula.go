@@ -124,7 +124,7 @@ func runAcceptEula(cmdParts []string) {
 		if err := json.Unmarshal(resp.Result, &result); err == nil {
 			for _, c := range result.Content {
 				if c.Type == contentTypeText {
-					fmt.Fprintln(os.Stderr, c.Text)
+					fmt.Fprintln(os.Stderr, unwrapResponseText(c.Text))
 				}
 			}
 			if result.IsError {

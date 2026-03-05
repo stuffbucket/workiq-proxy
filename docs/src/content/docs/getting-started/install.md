@@ -1,7 +1,7 @@
 ---
 draft: false
 title: Install
-description: Install workiq-proxy via npm or download a binary.
+description: Install workiq-proxy with one command.
 sidebar:
   order: 1
 ---
@@ -12,11 +12,49 @@ workiq-proxy lets your AI assistant search your Microsoft 365 emails, documents,
 
 workiq-proxy extends [Microsoft Work IQ](https://github.com/microsoft/work-iq-mcp). You'll need:
 
-- **Node.js 18+** — the underlying Work IQ CLI runs on Node
+- **Node.js 18+** — the underlying Work IQ CLI runs on Node (the installer handles this for you)
 - **Microsoft 365 Copilot license** — your tenant must have M365 Copilot enabled
 - **Admin-consented permissions** — a tenant admin must grant delegated permissions once (see [Admin Consent](/workiq-proxy/reference/admin/))
 
-## npm (recommended)
+## Quick install (recommended)
+
+### macOS / Linux
+
+```bash
+curl -fsSL https://stuffbucket.github.io/workiq-proxy/install.sh | sh
+```
+
+The installer:
+
+1. Detects (or installs) Node.js 18+
+2. Installs `@stuffbucket/workiq-proxy` globally via npm
+3. Detects any existing `@microsoft/workiq` installation
+
+To review the script before running it:
+
+```bash
+curl -fsSL https://stuffbucket.github.io/workiq-proxy/install.sh | less
+```
+
+### Windows (PowerShell)
+
+```powershell
+irm https://stuffbucket.github.io/workiq-proxy/install.ps1 | iex
+```
+
+The installer:
+
+1. Detects (or installs) Node.js 18+ via winget, Chocolatey, or Scoop
+2. Installs `@stuffbucket/workiq-proxy` globally via npm
+3. Detects any existing `@microsoft/workiq` installation
+
+To review the script before running it:
+
+```powershell
+irm https://stuffbucket.github.io/workiq-proxy/install.ps1 | more
+```
+
+## npm
 
 ```bash
 npm install -g @stuffbucket/workiq-proxy

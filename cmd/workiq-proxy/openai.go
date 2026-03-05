@@ -87,6 +87,23 @@ type OpenAIErrorDetail struct {
 // contentTypeText is the MCP content item type for plain text.
 const contentTypeText = "text"
 
+// unwrapResponseText handles the case where the MCP backend returns
+// a JSON envelope {"response":"...","conversationId":"..."} inside
+// a text content item. If the text is such an envelope, the inner
+// response string is returned; otherwise the text is returned as-is.
+func unwrapResponseText(text string) string {
+	if len(text) < 2 || text[0] != '{' {
+		return text
+	}
+	var envelope struct {
+		Response string `json:"response"`
+	}
+	if err := json.Unmarshal([]byte(text), &envelope); err != nil || envelope.Response == "" {
+		return text
+	}
+	return envelope.Response
+}
+
 // finishReasonStop is the OpenAI finish_reason for a completed response.
 const finishReasonStop = "stop"
 
@@ -173,7 +190,7 @@ func extractTextContent(result json.RawMessage) (string, bool) {
 		var parts []string
 		for _, c := range r.Content {
 			if c.Type == contentTypeText {
-				parts = append(parts, c.Text)
+				parts = append(parts, unwrapResponseText(c.Text))
 			}
 		}
 		return fmt.Sprintf("Error: %s", joinNonEmpty(parts)), true
@@ -181,7 +198,7 @@ func extractTextContent(result json.RawMessage) (string, bool) {
 	var parts []string
 	for _, c := range r.Content {
 		if c.Type == contentTypeText {
-			parts = append(parts, c.Text)
+			parts = append(parts, unwrapResponseText(c.Text))
 		}
 	}
 	return joinNonEmpty(parts), false

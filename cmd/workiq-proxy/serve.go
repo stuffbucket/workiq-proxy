@@ -3,9 +3,11 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -186,13 +188,20 @@ func (b *mcpBackend) askAsync(ctx context.Context, question string) <-chan askRe
 // ── HTTP server ─────────────────────────────────────────────────────
 
 var apiLog *charmlog.Logger
+var jsonLog *slog.Logger // non-nil when --json is active
 
 func initAPILog() {
-	apiLog = charmlog.NewWithOptions(os.Stderr, charmlog.Options{
-		ReportTimestamp: true,
-		TimeFormat:      time.TimeOnly,
-		Prefix:          "api",
-	})
+	if cfg.JSON {
+		jsonLog = slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+			Level: slog.LevelInfo,
+		}))
+	} else {
+		apiLog = charmlog.NewWithOptions(os.Stderr, charmlog.Options{
+			ReportTimestamp: true,
+			TimeFormat:      time.TimeOnly,
+			Prefix:          "api",
+		})
+	}
 	initDiskLog()
 }
 
@@ -216,15 +225,39 @@ func runServe(cmdParts []string, port int) {
 	})
 	mux.HandleFunc("/v1/models", handleModels)
 	mux.HandleFunc("/v1/repl", handleRepl)
+	mux.HandleFunc("/v1/repl/", handleRepl)
 	mux.HandleFunc("/", handleNotFound)
 
 	handler := loggingMiddleware(corsMiddleware(mux))
 
 	ln := findListener(port)
+	scheme := "http"
+	if cfg.TLS {
+		tlsCfg, tlsErr := loadOrGenerateTLSConfig()
+		if tlsErr != nil {
+			errServerStopped().detail(tlsErr).Die()
+		}
+		ln = tls.NewListener(ln, tlsCfg)
+		scheme = "https"
+	}
 	addr := ln.Addr().String()
-	fmt.Fprintf(os.Stderr, "workiq-proxy serving OpenAI-compatible API at http://%s\n", addr)
-	fmt.Fprintf(os.Stderr, "POST /v1/chat/completions   GET /v1/models   WS /v1/repl\n")
-	fmt.Fprintf(os.Stderr, "Press Ctrl-C to stop.\n")
+	if jsonLog != nil {
+		jsonLog.Info("listening",
+			"addr", addr,
+			"tls", cfg.TLS,
+			"routes", []string{
+				"POST /v1/chat/completions",
+				"GET /v1/models",
+				"WS /v1/repl",
+			})
+	} else {
+		fmt.Fprintf(os.Stderr, "workiq-proxy serving OpenAI-compatible API at %s://%s\n", scheme, addr)
+		fmt.Fprintf(os.Stderr, "POST /v1/chat/completions   GET /v1/models   WS /v1/repl\n")
+		if cfg.TLS {
+			fmt.Fprintf(os.Stderr, "TLS enabled — visit %s://%s in your browser to trust the certificate.\n", scheme, addr)
+		}
+		fmt.Fprintf(os.Stderr, "Press Ctrl-C to stop.\n")
+	}
 
 	srv := &http.Server{
 		Handler:           handler,
@@ -236,7 +269,11 @@ func runServe(cmdParts []string, port int) {
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, os.Interrupt)
 		<-sigCh
-		fmt.Fprintln(os.Stderr, "\nworkiq-proxy: shutting down...")
+		if jsonLog != nil {
+			jsonLog.Info("shutting-down")
+		} else {
+			fmt.Fprintln(os.Stderr, "\nworkiq-proxy: shutting down...")
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = srv.Shutdown(ctx)
@@ -413,8 +450,22 @@ func isLocalOrigin(origin string) bool {
 		strings.HasPrefix(origin, "http://localhost/") ||
 		strings.HasPrefix(origin, "http://127.0.0.1:") ||
 		strings.HasPrefix(origin, "http://127.0.0.1/") ||
+		strings.HasPrefix(origin, "https://localhost:") ||
+		strings.HasPrefix(origin, "https://localhost/") ||
+		strings.HasPrefix(origin, "https://127.0.0.1:") ||
+		strings.HasPrefix(origin, "https://127.0.0.1/") ||
 		origin == "http://localhost" ||
-		origin == "http://127.0.0.1"
+		origin == "http://127.0.0.1" ||
+		origin == "https://localhost" ||
+		origin == "https://127.0.0.1"
+}
+
+// isTrustedOrigin returns true for localhost and known first-party origins.
+// The server only binds to 127.0.0.1, so the network interface is the real
+// access boundary; origin checks are defense-in-depth against CSRF.
+func isTrustedOrigin(origin string) bool {
+	return isLocalOrigin(origin) ||
+		origin == "https://stuffbucket.github.io"
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
@@ -425,7 +476,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		if !isLocalOrigin(origin) {
+		if !isTrustedOrigin(origin) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -473,15 +524,22 @@ var reqCounter atomic.Int64
 
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if apiLog == nil {
+		if apiLog == nil && jsonLog == nil {
 			next.ServeHTTP(w, r)
 			return
 		}
 
 		id := reqCounter.Add(1)
-		tag := fmt.Sprintf("#%d", id)
 
-		apiLog.Info(tag+" → "+r.Method, "path", r.URL.Path)
+		if jsonLog != nil {
+			jsonLog.Info("http-request",
+				"id", id,
+				"method", r.Method,
+				"path", r.URL.Path)
+		} else {
+			tag := fmt.Sprintf("#%d", id)
+			apiLog.Info(tag+" → "+r.Method, "path", r.URL.Path)
+		}
 		diskInfo("http-request",
 			"id", id,
 			"method", r.Method,
@@ -493,27 +551,48 @@ func loggingMiddleware(next http.Handler) http.Handler {
 		duration := time.Since(start)
 
 		status := rec.status
+
+		if jsonLog != nil {
+			lvl := slog.LevelInfo
+			if status >= 500 {
+				lvl = slog.LevelError
+			} else if status >= 400 {
+				lvl = slog.LevelWarn
+			}
+			jsonLog.Log(context.Background(), lvl, "http-response",
+				"id", id,
+				"status", status,
+				"duration_ms", duration.Milliseconds())
+		} else {
+			tag := fmt.Sprintf("#%d", id)
+			switch {
+			case status >= 500:
+				apiLog.Error(tag+" ←",
+					"status", status,
+					"duration", duration.Round(time.Millisecond))
+			case status >= 400:
+				apiLog.Warn(tag+" ←",
+					"status", status,
+					"duration", duration.Round(time.Millisecond))
+			default:
+				apiLog.Info(tag+" ←",
+					"status", status,
+					"duration", duration.Round(time.Millisecond))
+			}
+		}
+
 		switch {
 		case status >= 500:
-			apiLog.Error(tag+" ←",
-				"status", status,
-				"duration", duration.Round(time.Millisecond))
 			diskError("http-response",
 				"id", id,
 				"status", status,
 				"duration_ms", duration.Milliseconds())
 		case status >= 400:
-			apiLog.Warn(tag+" ←",
-				"status", status,
-				"duration", duration.Round(time.Millisecond))
 			diskWarn("http-response",
 				"id", id,
 				"status", status,
 				"duration_ms", duration.Milliseconds())
 		default:
-			apiLog.Info(tag+" ←",
-				"status", status,
-				"duration", duration.Round(time.Millisecond))
 			diskInfo("http-response",
 				"id", id,
 				"status", status,

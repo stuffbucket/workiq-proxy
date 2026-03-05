@@ -15,7 +15,7 @@ import (
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		origin := r.Header.Get("Origin")
-		return origin == "" || isLocalOrigin(origin)
+		return origin == "" || isTrustedOrigin(origin)
 	},
 	ReadBufferSize:  4096,
 	WriteBufferSize: 4096,
@@ -25,7 +25,11 @@ var upgrader = websocket.Upgrader{
 // workiq-proxy process in a pseudo-terminal, and bridges pty I/O to
 // the WebSocket using binary frames.
 func handleRepl(w http.ResponseWriter, r *http.Request) {
-	if apiLog != nil {
+	if jsonLog != nil {
+		jsonLog.Info("repl-upgrade",
+			"method", r.Method,
+			"origin", r.Header.Get("Origin"))
+	} else if apiLog != nil {
 		apiLog.Info("repl: upgrade request",
 			"method", r.Method,
 			"upgrade", r.Header.Get("Upgrade"),
@@ -35,7 +39,9 @@ func handleRepl(w http.ResponseWriter, r *http.Request) {
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		if apiLog != nil {
+		if jsonLog != nil {
+			jsonLog.Error("repl-upgrade-failed", "err", err)
+		} else if apiLog != nil {
 			apiLog.Error("repl: websocket upgrade failed", "err", err)
 		}
 		return
@@ -93,7 +99,9 @@ func handleRepl(w http.ResponseWriter, r *http.Request) {
 		_ = cmd.Wait()
 	}()
 
-	if apiLog != nil {
+	if jsonLog != nil {
+		jsonLog.Info("repl-started", "pid", cmd.Process.Pid)
+	} else if apiLog != nil {
 		apiLog.Info("repl: session started", "pid", cmd.Process.Pid)
 	}
 
@@ -149,7 +157,9 @@ func handleRepl(w http.ResponseWriter, r *http.Request) {
 
 	wg.Wait()
 
-	if apiLog != nil {
+	if jsonLog != nil {
+		jsonLog.Info("repl-ended", "pid", cmd.Process.Pid)
+	} else if apiLog != nil {
 		apiLog.Info("repl: session ended", "pid", cmd.Process.Pid)
 	}
 }

@@ -57,7 +57,8 @@ requestAnimationFrame(() => fitAddon.fit());
 // Update browser tab title when the REPL sends an OSC title sequence.
 term.onTitleChange(title => { document.title = title; });
 
-const wsUrl = `ws://${location.host}/v1/repl`;
+const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+const wsUrl = `${wsProto}//${location.host}/v1/repl`;
 let ws;
 let hasConnected = false;
 

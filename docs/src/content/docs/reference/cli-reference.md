@@ -38,9 +38,11 @@ These are the commands most people need:
 
 | Flag | Default | Description |
 |------|---------|-------------|
+| `--json` | `false` | Emit JSONL to stderr instead of pretty-printed logs (serve/web modes) |
 | `--log-file` | *(none)* | Override log file path (default: $XDG_STATE_HOME/workiq-proxy/workiq-proxy.log) |
 | `--no-log` | `false` | Disable traffic logging |
 | `--port` | `11435` | Port for serve mode (seeks next available if busy) |
+| `--tls` | `false` | Enable TLS with an auto-generated self-signed certificate for localhost |
 | `--workiq-cmd` | `npx -y @microsoft/workiq` | Base command to reach the Work IQ CLI |
 
 ## REPL Slash Commands

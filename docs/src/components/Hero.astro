@@ -24,10 +24,21 @@ const base = import.meta.env.BASE_URL;
         Get AI tools to work together with one install to rule them all.
       </h2>
 
-      <div class="install-command">
+      <div class="install-tabs" role="tablist" aria-label="Operating system">
+        <button role="tab" aria-selected="true" aria-controls="install-unix" id="tab-unix" class="install-tab active" data-tab="unix">macOS / Linux</button>
+        <button role="tab" aria-selected="false" aria-controls="install-win" id="tab-win" class="install-tab" data-tab="win">Windows</button>
+      </div>
+      <div class="install-command" id="install-unix" role="tabpanel" aria-labelledby="tab-unix">
         <span class="install-prompt">$</span>
-        <span class="install-text">npm install -g @stuffbucket/workiq-proxy</span>
-        <button class="install-copy" onclick="navigator.clipboard.writeText('npm install -g @stuffbucket/workiq-proxy')" title="Copy to clipboard">
+        <span class="install-text">curl -fsSL https://stuffbucket.github.io/workiq-proxy/install.sh | sh</span>
+        <button class="install-copy" onclick="navigator.clipboard.writeText('curl -fsSL https://stuffbucket.github.io/workiq-proxy/install.sh | sh')" title="Copy to clipboard">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        </button>
+      </div>
+      <div class="install-command hidden" id="install-win" role="tabpanel" aria-labelledby="tab-win">
+        <span class="install-prompt">&gt;</span>
+        <span class="install-text">irm https://stuffbucket.github.io/workiq-proxy/install.ps1 | iex</span>
+        <button class="install-copy" onclick="navigator.clipboard.writeText('irm https://stuffbucket.github.io/workiq-proxy/install.ps1 | iex')" title="Copy to clipboard">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
         </button>
       </div>
@@ -41,26 +52,16 @@ const base = import.meta.env.BASE_URL;
       </a>
     </div>
 
-    <!-- xterm goes here -->
+    <!-- Terminal screenshot -->
 
-    <section class="terminal-window" aria-label="Live terminal">
-      <div class="terminal-titlebar">
-        <span class="terminal-dot red"></span>
-        <span class="terminal-dot yellow"></span>
-        <span class="terminal-dot green"></span>
-        <span class="terminal-title">workiq-proxy</span>
-      </div>
-      <div id="terminal-container">
-        <div id="terminal-shell">
-          <div class="terminal-gutter" aria-hidden="true"></div>
-          <div id="terminal-inner"></div>
-          <div class="terminal-gutter" aria-hidden="true"></div>
-        </div>
-      </div>
-      <div id="terminal-offline" class="terminal-offline" hidden>
-        <p>Start the proxy to connect:</p>
-        <code>workiq-proxy serve</code>
-      </div>
+    <section class="terminal-window" aria-label="Terminal screenshot">
+      <img
+        src={`${base}/stuffbucket.github.io_workiq-proxy_.png`}
+        alt="workiq-proxy terminal session showing a Work IQ query and response"
+        class="terminal-screenshot"
+        loading="lazy"
+        decoding="async"
+      />
     </section>
 
     <section class="features">
@@ -141,288 +142,23 @@ const base = import.meta.env.BASE_URL;
     });
   });
 
-  // Live terminal via xterm.js
-  async function initTerminal() {
-    const container = document.getElementById('terminal-container');
-    const terminalInner = document.getElementById('terminal-inner');
-    const offline = document.getElementById('terminal-offline');
-    if (!container || !terminalInner) return;
-
-    const { Terminal } = await import('xterm');
-    const { FitAddon } = await import('@xterm/addon-fit');
-    const { WebLinksAddon } = await import('@xterm/addon-web-links');
-
-    const fitAddon = new FitAddon();
-
-    const term = new Terminal({
-      cursorBlink: true,
-      fontSize: 13,
-      fontFamily: "'SF Mono', 'Fira Code', 'JetBrains Mono', Menlo, Consolas, monospace",
-      linkHandler: {
-        activate(event: MouseEvent, uri: string) {
-          // Prompt links work on plain click; external URLs need Cmd/Ctrl-click (iTerm2 style).
-          try {
-            const u = new URL(uri);
-            if (u.hostname === 'workiq.prompt') {
-              event.preventDefault();
-              const text = u.searchParams.get('q') || '';
-              if (text && ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(new TextEncoder().encode(text + '\r'));
-              }
-              term.focus();
-              return;
-            }
-          } catch { /* not a valid URL, fall through */ }
-          if (event.metaKey || event.ctrlKey) {
-            window.open(uri, '_blank', 'noopener');
-          }
-        },
-      },
-      theme: {
-        background: '#0d1117',
-        foreground: '#c9d1d9',
-        cursor: '#58a6ff',
-        selectionBackground: '#264f78',
-        black: '#0d1117',
-        red: '#ff7b72',
-        green: '#7ee787',
-        yellow: '#d29922',
-        blue: '#58a6ff',
-        magenta: '#bc8cff',
-        cyan: '#39d353',
-        white: '#c9d1d9',
-        brightBlack: '#484f58',
-        brightRed: '#ffa198',
-        brightGreen: '#56d364',
-        brightYellow: '#e3b341',
-        brightBlue: '#79c0ff',
-        brightMagenta: '#d2a8ff',
-        brightCyan: '#56d364',
-        brightWhite: '#f0f6fc',
-      },
-      allowTransparency: false,
-      scrollback: 500,
-      rows: 20,
-    });
-
-    term.loadAddon(fitAddon);
-    term.loadAddon(new WebLinksAddon((_event: MouseEvent, uri: string) => {
-      // Prompt links activate on plain click; external URLs need Cmd/Ctrl-click.
-      try {
-        const u = new URL(uri);
-        if (u.hostname === 'workiq.prompt') {
-          const text = u.searchParams.get('q') || '';
-          if (text && ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(new TextEncoder().encode(text + '\r'));
-          }
-          term.focus();
-          return;
-        }
-      } catch { /* not a valid URL, fall through */ }
-      if (_event.metaKey || _event.ctrlKey) {
-        window.open(uri, '_blank', 'noopener');
-      }
-    }));
-    term.open(terminalInner);
-
-    // Fit to the inner terminal box; outer container adds a 4px left/right buffer.
-    function fitWithMargin() {
-      fitAddon.fit();
-    }
-
-    // Update the fake titlebar when /title sets an OSC 0 sequence
-    const titleEl = document.querySelector('.terminal-title');
-    if (titleEl) {
-      term.onTitleChange((title) => { titleEl.textContent = title; });
-    }
-
-    // Traffic-light dot behaviors
-    const frame = container.closest('.terminal-window') as HTMLElement | null;
-    const redDot = document.querySelector('.terminal-dot.red');
-    const yellowDot = document.querySelector('.terminal-dot.yellow');
-    const greenDot = document.querySelector('.terminal-dot.green');
-
-    if (redDot) {
-      (redDot as HTMLElement).style.cursor = 'pointer';
-      redDot.addEventListener('click', () => {
-        if (ws) { ws.close(); ws = null; }
-        connected = false;
-        term.clear();
-        showOffline();
-        if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+  // OS install tabs
+  document.querySelectorAll('.install-tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      const target = (tab as HTMLElement).dataset.tab;
+      document.querySelectorAll('.install-tab').forEach((t) => {
+        t.classList.toggle('active', (t as HTMLElement).dataset.tab === target);
+        t.setAttribute('aria-selected', String((t as HTMLElement).dataset.tab === target));
       });
-    }
-
-    let collapsed = false;
-    if (yellowDot) {
-      (yellowDot as HTMLElement).style.cursor = 'pointer';
-      yellowDot.addEventListener('click', () => {
-        collapsed = !collapsed;
-        container!.style.display = collapsed ? 'none' : '';
-        if (offline) offline.style.display = collapsed ? 'none' : '';
-        if (!collapsed) requestAnimationFrame(() => fitWithMargin());
+      document.querySelectorAll('.install-command[role="tabpanel"]').forEach((panel) => {
+        panel.classList.toggle('hidden', panel.id !== `install-${target}`);
       });
-    }
-
-    if (greenDot) {
-      let expanded = false;
-      (greenDot as HTMLElement).style.cursor = 'pointer';
-      greenDot.addEventListener('click', () => {
-        if (collapsed) {
-          collapsed = false;
-          container!.style.display = '';
-          if (offline) offline.style.display = '';
-        }
-        expanded = !expanded;
-        if (frame) {
-          if (expanded) {
-            frame.style.position = 'fixed';
-            frame.style.inset = '0';
-            frame.style.zIndex = '9999';
-            frame.style.borderRadius = '0';
-            frame.style.margin = '0';
-            frame.style.maxWidth = 'none';
-            container.style.height = `calc(100vh - ${frame.querySelector('.terminal-titlebar')!.getBoundingClientRect().height}px)`;
-          } else {
-            frame.style.position = '';
-            frame.style.inset = '';
-            frame.style.zIndex = '';
-            frame.style.borderRadius = '';
-            frame.style.margin = '';
-            frame.style.maxWidth = '';
-            container.style.height = '';
-          }
-        }
-        requestAnimationFrame(() => {
-          fitWithMargin();
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ cols: term.cols, rows: term.rows }));
-          }
-        });
-      });
-    }
-
-    // Defer fit until after layout is stable
-    requestAnimationFrame(() => fitWithMargin());
-
-    // Try to connect to the local REPL WebSocket
-    const wsUrl = 'ws://localhost:11435/v1/repl';
-    let ws: WebSocket | null = null;
-    let connected = false;
-    let retryDelay = 1000;  // start at 1s
-    let retryTimer: ReturnType<typeof setTimeout> | null = null;
-    const MAX_RETRY_DELAY = 5000; // cap at 5s so page updates quickly when server starts
-
-    function connect() {
-      try {
-        ws = new WebSocket(wsUrl);
-        ws.binaryType = 'arraybuffer';
-
-        ws.onopen = () => {
-          connected = true;
-          retryDelay = 1000; // reset backoff on success
-          if (offline) offline.hidden = true;
-          container!.style.display = '';
-          console.log('[workiq] connected to REPL at', wsUrl);
-          // Send resize immediately so the server spawns the pty at the right size.
-          fitWithMargin();
-          console.log('[workiq] terminal dimensions:', term.cols, 'x', term.rows);
-          if (term.cols > 1) {
-            ws!.send(JSON.stringify({ cols: term.cols, rows: term.rows }));
-          }
-        };
-
-        ws.onmessage = (ev) => {
-          const data = ev.data instanceof ArrayBuffer
-            ? new Uint8Array(ev.data)
-            : ev.data;
-          term.write(data);
-        };
-
-        ws.onclose = () => {
-          if (connected) {
-            // Was connected, now lost — clear terminal and reconnect
-            connected = false;
-            term.clear();
-          }
-          scheduleRetry();
-        };
-
-        ws.onerror = () => {
-          // onerror is always followed by onclose — no action needed here
-        };
-      } catch {
-        scheduleRetry();
-      }
-    }
-
-    function scheduleRetry() {
-      showOffline();
-      if (retryTimer) return; // already scheduled
-      console.log(`[workiq] REPL not available, retrying in ${retryDelay / 1000}s`);
-      retryTimer = setTimeout(() => {
-        retryTimer = null;
-        retryDelay = Math.min(retryDelay * 1.5, MAX_RETRY_DELAY);
-        connect();
-      }, retryDelay);
-    }
-
-    function showOffline() {
-      container!.style.display = 'none';
-      if (offline) offline.hidden = false;
-    }
-
-    // Forward user input to WebSocket
-    term.onData((data) => {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(new TextEncoder().encode(data));
-      }
     });
+  });
 
-    // Handle resize
-    const ro = new ResizeObserver(() => {
-      fitWithMargin();
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ cols: term.cols, rows: term.rows }));
-      }
-    });
-    ro.observe(terminalInner);
-
-    // Auto-focus: when the user starts typing anywhere on the page,
-    // focus the terminal so keystrokes go to the REPL.
-    document.addEventListener('keydown', (e) => {
-      if (!connected) return;
-      // Don't steal from inputs, textareas, or contenteditable
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return;
-      // Don't steal modifier-only combos (Cmd+T, Ctrl+L, etc.)
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      term.focus();
-    });
-
-    // Prevent page scroll when mouse is over the terminal
-    container.addEventListener('wheel', (e) => { e.preventDefault(); }, { passive: false });
-
-    // When terminal gets focus, scroll the frame into view:
-    // show top of frame if it fits, otherwise anchor the bottom.
-    if (frame) {
-      container.addEventListener('mousedown', () => {
-        const rect = frame.getBoundingClientRect();
-        if (rect.height <= window.innerHeight) {
-          // Whole frame fits — show the top
-          frame.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        } else {
-          // Frame taller than viewport — anchor the bottom
-          frame.scrollIntoView({ behavior: 'smooth', block: 'end' });
-        }
-      });
-    }
-
-    connect();
-  }
-
-  // Only init on index page
-  if (document.querySelector('.hero-landing')) {
-    initTerminal();
+  // Auto-select Windows tab if user is on Windows
+  if (navigator.userAgent?.includes('Windows')) {
+    const winTab = document.getElementById('tab-win');
+    if (winTab) winTab.click();
   }
 </script>

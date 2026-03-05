@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	_ "embed"
 	"fmt"
 	"net/http"
@@ -38,6 +39,7 @@ func runWeb(cmdParts []string, port int) {
 	})
 	mux.HandleFunc("/v1/models", handleModels)
 	mux.HandleFunc("/v1/repl", handleRepl)
+	mux.HandleFunc("/v1/repl/", handleRepl)
 	mux.HandleFunc("/", handleWebUI)
 
 	handler := loggingMiddleware(corsMiddleware(mux))
@@ -45,10 +47,23 @@ func runWeb(cmdParts []string, port int) {
 	// Bind the port first, then open the browser — the listener is
 	// already accepting connections at this point.
 	ln := findListener(port)
-	url := "http://" + ln.Addr().String()
+	scheme := "http"
+	if cfg.TLS {
+		tlsCfg, tlsErr := loadOrGenerateTLSConfig()
+		if tlsErr != nil {
+			errServerStopped().detail(tlsErr).Die()
+		}
+		ln = tls.NewListener(ln, tlsCfg)
+		scheme = "https"
+	}
+	url := scheme + "://" + ln.Addr().String()
 
-	fmt.Fprintf(os.Stderr, "workiq-proxy web UI at %s\n", url)
-	fmt.Fprintf(os.Stderr, "Press Ctrl-C to stop.\n")
+	if jsonLog != nil {
+		jsonLog.Info("listening", "addr", ln.Addr().String(), "mode", "web")
+	} else {
+		fmt.Fprintf(os.Stderr, "workiq-proxy web UI at %s\n", url)
+		fmt.Fprintf(os.Stderr, "Press Ctrl-C to stop.\n")
+	}
 
 	openBrowser(url)
 
@@ -62,7 +77,11 @@ func runWeb(cmdParts []string, port int) {
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, os.Interrupt)
 		<-sigCh
-		fmt.Fprintln(os.Stderr, "\nworkiq-proxy: shutting down...")
+		if jsonLog != nil {
+			jsonLog.Info("shutting-down")
+		} else {
+			fmt.Fprintln(os.Stderr, "\nworkiq-proxy: shutting down...")
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = srv.Shutdown(ctx)

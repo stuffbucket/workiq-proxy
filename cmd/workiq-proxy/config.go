@@ -11,7 +11,7 @@ import (
 // Compile-time constants — single source of truth for identity strings
 // used in MCP handshakes and user-facing output.
 const (
-	Version          = "0.3.4"
+	Version          = "0.4.0"
 	MCPProtocol      = "2025-11-25"
 	DefaultWorkiqCmd = "npx -y @microsoft/workiq"
 	DefaultPort      = 11435
@@ -28,6 +28,8 @@ type Config struct {
 	LogFile   string `json:"log_file"`   // Override log file path ("" = default XDG state dir)
 	NoLog     bool   `json:"no_log"`     // Disable traffic logging
 	Port      int    `json:"port"`       // Port for serve/web mode
+	JSON      bool   `json:"json"`       // Emit JSONL to stderr instead of pretty logs
+	TLS       bool   `json:"tls"`        // Enable TLS with auto-generated localhost cert
 }
 
 // cfg is the global config instance, available after loadConfig().
@@ -67,11 +69,15 @@ func loadConfig() {
 		case "log-file":
 			cfg.LogFile = f.Value.String()
 		case "no-log":
-			cfg.NoLog = f.Value.String() == "true"
+			cfg.NoLog = f.Value.String() == "true" //nolint:goconst // flag value
 		case "port":
 			if n, err := strconv.Atoi(f.Value.String()); err == nil && n > 0 {
 				cfg.Port = n
 			}
+		case "json": //nolint:goconst // flag name, not worth a constant
+			cfg.JSON = f.Value.String() == "true"
+		case "tls":
+			cfg.TLS = f.Value.String() == "true" //nolint:goconst // flag value
 		}
 	})
 }
